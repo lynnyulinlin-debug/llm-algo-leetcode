@@ -1,6 +1,6 @@
 # 讨论题 1：大模型显存占用 (VRAM Calculation) 计算指南
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 这里只是数学推导，想看看真正的 ZeRO-1 和 激活值重计算是怎么用代码切分的？
 > 👉 [`../02_PyTorch_Algorithms/17_Gradient_Checkpointing.ipynb`](../02_PyTorch_Algorithms/17_Gradient_Checkpointing.ipynb)
 > 👉 [`../02_PyTorch_Algorithms/19_ZeRO_1_Optimizer_Sim.ipynb`](../02_PyTorch_Algorithms/19_ZeRO_1_Optimizer_Sim.ipynb)

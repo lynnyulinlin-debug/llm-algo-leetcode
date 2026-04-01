@@ -1,6 +1,6 @@
 # 03. GPU 物理架构、内存层级与核心硬件单元
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 本节讲解了 SRAM、HBM 与 Tensor Core。去看看工业界如何用代码榨干它们：
 > 👉 [`../03_CUDA_and_Triton_Kernels/04_Triton_GEMM_Tutorial.ipynb`](../03_CUDA_and_Triton_Kernels/04_Triton_GEMM_Tutorial.ipynb)
 > 👉 [`../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.ipynb`](../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.ipynb)

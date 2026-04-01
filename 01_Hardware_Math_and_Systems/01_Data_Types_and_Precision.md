@@ -1,7 +1,7 @@
 # 讨论题 1：大模型的数据格式与混合精度 (Data Types & Precision)
 
-> 🔗 **Cross-Reference (代码实战)**:
-> 理论看懂了？前往实战篇手写量化与混合精度：
+> **相关阅读**:  
+
 > 👉 [`../02_PyTorch_Algorithms/16_Quantization_W8A16.ipynb`](../02_PyTorch_Algorithms/16_Quantization_W8A16.ipynb)
 > 👉 [`../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.ipynb`](../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.ipynb)
 

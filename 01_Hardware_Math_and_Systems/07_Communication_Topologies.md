@@ -1,6 +1,6 @@
 # 讨论题 3：通信拓扑与分布式基石 (Communication & Distributed Topology)
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 掌握了 TP/DP 和 All-Reduce，去实战多进程的集合通信原语和 TP 矩阵切片：
 > 👉 [`../02_PyTorch_Algorithms/20_Tensor_Parallelism_Sim.ipynb`](../02_PyTorch_Algorithms/20_Tensor_Parallelism_Sim.ipynb)
 > 👉 [`../03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.ipynb`](../03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.ipynb)

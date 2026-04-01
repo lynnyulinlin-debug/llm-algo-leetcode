@@ -1,6 +1,6 @@
 # 讨论题 6：CPU-GPU 异构协同与卸载 (Heterogeneous Co-Design & Offloading)
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 理论千遍不如手写一遍，去实战 CUDA Streams 异步重叠通信与计算：
 > 👉 [`../03_CUDA_and_Triton_Kernels/15_PyTorch_CUDA_Streams_and_Transfer.ipynb`](../03_CUDA_and_Triton_Kernels/15_PyTorch_CUDA_Streams_and_Transfer.ipynb)
 

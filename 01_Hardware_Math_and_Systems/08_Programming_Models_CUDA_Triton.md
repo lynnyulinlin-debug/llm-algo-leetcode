@@ -1,6 +1,6 @@
 # 讨论题 4：异构编程模型 (CUDA vs Triton)
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 不要停留在理论！直接去手写原生 CUDA C++ 感受降维打击：
 > 👉 [`../03_CUDA_and_Triton_Kernels/18_CUDA_Custom_Kernel_Intro.ipynb`](../03_CUDA_and_Triton_Kernels/18_CUDA_Custom_Kernel_Intro.ipynb)
 > 👉 [`../03_CUDA_and_Triton_Kernels/19_CUDA_Shared_Memory_Optimization.ipynb`](../03_CUDA_and_Triton_Kernels/19_CUDA_Shared_Memory_Optimization.ipynb)

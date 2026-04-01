@@ -1,6 +1,6 @@
 # 讨论题 4：Attention 变体与显存优化 (MQA / GQA / MLA)
 
-> 🔗 **Cross-Reference (代码实战)**:
+> **相关阅读**:  
 > 了解了 MQA/GQA 之后，去实战手撕它们以及 vLLM 的 PagedAttention：
 > 👉 [`../02_PyTorch_Algorithms/04_Attention_MHA_GQA.ipynb`](../02_PyTorch_Algorithms/04_Attention_MHA_GQA.ipynb)
 > 👉 [`../02_PyTorch_Algorithms/15_vLLM_PagedAttention.ipynb`](../02_PyTorch_Algorithms/15_vLLM_PagedAttention.ipynb)
