@@ -1,0 +1,13 @@
+torch
+pytest
+einops
+transformers
+jupyterlab
+ipywidgets
+nbformat
+jupyterlab-mathjax3
+triton
+matplotlib
+termcolor
+nbconvert
+pandas

@@ -1,50 +1,23 @@
 ---
-# https://vitepress.dev/reference/default-theme-home-page
 layout: home
 
 hero:
-  name: "Datawhale开源教程"
-  text: "AI前沿知识开源教程"
-  tagline: 开始学起来吧~
+  name: "LLM-LeetCode"
+  text: "大语言模型算法工程师工程实战题库"
+  tagline: "系统性、可交互、带评测的工程实战复习指南"
   image:
     src: /learning.GIF
-    alt: Datawhale开源教程
+    alt: LLM-LeetCode
   actions:
     - theme: brand
-      text: 开始学习
-      link: /chapter1/
+      text: GitHub 仓库
+      link: https://github.com/your-username/LLM-LeetCode
 
 features:
-  - title: 💥 前沿
-    details: 紧跟技术发展输出最前沿的知识
-  - title: 🎁 免费
-    details: 无任何形式的收费
-  - title: 🌐 开源
-    details: 教程和代码源文件全部托管在GitHub
+  - title: 🚀 高度垂直
+    details: 专注 Transformer、MoE、量化、推理加速与显存优化。
+  - title: 💻 工程导向
+    details: 要求使用 PyTorch、Triton 或原生的 CUDA C++ 实现核心算子和系统逻辑。
+  - title: 🧪 测试驱动
+    details: 每一道题都内置了工业级测试验证与 Benchmark 性能基准测试。
 ---
-<script setup>
-import { VPTeamMembers } from 'vitepress/theme'
-
-const members = [
-  {
-    avatar: 'https://www.github.com/Sm1les.png',
-    name: 'Sm1les',
-    title: '项目负责人',
-    links: [
-      { icon: 'github', link: 'https://github.com/Sm1les' },
-    ]
-  },
-  {
-    avatar: 'https://www.github.com/Sm1les.png',
-    name: '马里奥',
-    title: '核心贡献者',
-    links: [
-      { icon: 'github', link: 'https://github.com/Sm1les' },
-    ]
-  }
-]
-</script>
-
-
-<h2 align="center">Team</h2>
-<VPTeamMembers size="small" :members />

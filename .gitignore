@@ -1,3 +1,14 @@
 node_modules/
 docs/.vitepress/dist
 docs/.vitepress/cache
+.ipynb_checkpoints/
+__pycache__/
+.pytest_cache/
+ROADMAP.md
+clean_steps.py
+fix_cross_ref.py
+normalize_notebooks.py
+perfect_notebooks.py
+remove_tldr.py
+repair_notebooks.py
+unify_audience.py
