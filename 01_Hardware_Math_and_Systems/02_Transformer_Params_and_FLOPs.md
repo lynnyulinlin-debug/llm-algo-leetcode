@@ -1,5 +1,8 @@
 # 讨论题 02：Transformer 参数量与算力推导 (Params & FLOPs Math)
 
+> **相关阅读**:
+> 本节为纯理论与常识科普，暂无强关联的代码实战，推荐作为基石阅读。
+
 **难度：** Medium | **标签：** `数学推导`, `Transformer` | **目标人群：** 通用基础 (算法/Infra)
 
 **难度：** Medium | **标签：** `数学推导`, `Transformer` | **目标人群：** 通用基础 (算法/Infra)
