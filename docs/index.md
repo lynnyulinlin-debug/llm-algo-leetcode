@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: GitHub 仓库
-      link: https://github.com/your-username/LLM-LeetCode
+      link: https://github.com/lynnyulinlin-debug/llm-algo-leetcode
 
 features:
   - title:  高度垂直

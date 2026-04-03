@@ -9,3 +9,4 @@ __pycache__/
 scripts/
 ROADMAP.md
 format_skill.py
+convert_notebook.py
