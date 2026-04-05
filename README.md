@@ -70,7 +70,7 @@
 sudo apt-get install build-essential
 
 # 1. 克隆仓库
-git clone https://github.com/your-username/llm-algo-leetcode.git
+git clone https://github.com/lynnyulinlin-debug/llm-algo-leetcode.git
 cd llm-algo-leetcode
 
 # 2. 创建并激活虚拟环境 (建议 Python 3.10+)

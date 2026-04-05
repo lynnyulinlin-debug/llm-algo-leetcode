@@ -432,3 +432,13 @@ td {
   width: 10%;
   /* 强制均匀分配宽度 */
 }
+/* Blockquote 样式调整 */
+.vp-doc blockquote {
+  margin: 1.5rem 0;
+  line-height: 1.8;
+}
+
+.vp-doc blockquote p {
+  margin: 0.5rem 0;
+}
+
