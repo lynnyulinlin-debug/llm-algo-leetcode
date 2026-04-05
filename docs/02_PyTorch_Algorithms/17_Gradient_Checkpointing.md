@@ -1,0 +1,156 @@
+# 17 Gradient Checkpointing
+
+> 🚀 **云端运行环境**
+> 
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+> 
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/17_Gradient_Checkpointing.ipynb)  
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+# 17. 极致显存优化：激活值重计算 (Gradient Checkpointing)
+
+**难度：** Medium | **标签：** `训练优化`, `Memory Bound`, `PyTorch` | **目标人群：** 核心 Infra 与算子开发
+
+在算显存的时候，很多初学者只算“权重和优化器”，却发现一跑模型就 OOM（显存溢出）。这是因为在长序列（Long Context）的大模型前向传播中，**保存下来的激活值 (Activations)** 才是占据显存的真正巨兽。
+本节我们将演示如何用“时间换空间”的思想——也就是 **Gradient Checkpointing (梯度检查点 / 重计算)**，将激活用量呈平方根级别缩减。
+
+
+### Step 1: 核心思想与痛点
+
+> **标准的前向传播与反向传播：**
+> 在前向传播（Forward）时，为了给后面的反向传播（Backward）算梯度提供依据，PyTorch 必须把每一层的中间输出（也就是激活值）一直保存在显存里。层数越深、序列越长，积攒的废数据就越多。
+> 
+> **Gradient Checkpointing 的机制：**
+> 我们不再保存所有层的激活值，而是每隔几层（比如每个 Transformer Block 的起点）存一个“检查点 (Checkpoint)”。在这两个检查点之间的中间变量，前向算完直接丢掉！
+> 等到反向传播算到这儿时，我们从上一个存活的检查点开始，**把这一小段前向传播再重新算一遍 (Recomputation)** 来恢复激活值，接着立刻算梯度。
+> **结果：多花了大概 20%-30% 的时间算前向，但省下了成倍甚至十倍的显存！**
+
+
+### Step 2: 激活值重计算原理
+在训练极深的模型时，保存前向传播中所有的中间激活值（Activation）会消耗巨大的显存。Gradient Checkpointing 的思想是：只在特定的层（如每 4 层）保存中间结果。在反向传播时，如果需要某个丢弃的激活值，就从最近的 Checkpoint 重新前向计算一次。这用“时间换空间”的方式节省了高达数倍的显存。
+
+
+### Step 3: 代码实现框架
+在 PyTorch 中，这可以通过调用 `torch.utils.checkpoint.checkpoint` 轻松实现。你只需要将需要重计算的前向传播函数包装进去即可。底层的 Autograd 会自动替你管理何时释放、何时重新计算激活图。
+
+
+###  Step 4: 动手实战
+
+**要求**：请补全下方 `run_with_checkpointing` 函数。使用原生 PyTorch 提供的 `torch.utils.checkpoint` 模块，包裹我们传入的一系列神经网络层（如 Transformer Blocks）。
+
+
+```python
+import torch
+import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
+
+class SimpleTransformerBlock(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.ffn = nn.Sequential(
+            nn.Linear(dim, dim * 4),
+            nn.ReLU(),
+            nn.Linear(dim * 4, dim)
+        )
+        self.norm = nn.LayerNorm(dim)
+        
+    def forward(self, x):
+        # 制造一个比较大的激活值内存开销
+        out = self.ffn(self.norm(x))
+        return x + out
+
+def run_without_checkpointing(blocks: nn.ModuleList, x: torch.Tensor):
+    """
+    普通的前向传播，所有中间层的激活值都会被保存在计算图里
+    """
+    for block in blocks:
+        x = block(x)
+    return x
+
+def run_with_checkpointing(blocks: nn.ModuleList, x: torch.Tensor):
+    """
+    使用梯度检查点进行前向传播
+    """
+    for block in blocks:
+        # ==========================================
+        # TODO 1: 使用 torch.utils.checkpoint.checkpoint 包装块的执行
+        # 提示: checkpoint(被调用的模块, 输入参数, use_reentrant=False)
+        # 注意: 现代 PyTorch 推荐使用 use_reentrant=False 避免很多底层的坑
+        # ==========================================
+        # x = ???
+        pass
+    return x
+
+```
+
+```python
+# 运行此单元格以测试你的实现
+def test_gradient_checkpointing():
+    try:
+        # 清空显存
+        torch.cuda.empty_cache()
+        
+        # 模拟一个深度为 20 层，维度很大的网络
+        dim = 2048
+        num_layers = 20
+        blocks = nn.ModuleList([SimpleTransformerBlock(dim) for _ in range(num_layers)]).cuda()
+        
+        # 模拟一个极长的序列 (Batch=2, Seq=2048)
+        x_input = torch.randn(2, 2048, dim, device='cuda', requires_grad=True)
+        
+        print("1. 测试不开启 Checkpointing 的显存占用...")
+        torch.cuda.reset_peak_memory_stats()
+        out_normal = run_without_checkpointing(blocks, x_input)
+        out_normal.sum().backward()
+        mem_normal = torch.cuda.max_memory_allocated() / (1024 ** 2)
+        print(f"   Peak VRAM (Normal): {mem_normal:.2f} MB")
+        
+        # 清空并重置
+        del out_normal
+        x_input.grad = None
+        torch.cuda.empty_cache()
+        
+        print("\n2. 测试开启 Checkpointing 的显存占用...")
+        torch.cuda.reset_peak_memory_stats()
+        out_ckpt = run_with_checkpointing(blocks, x_input)
+        out_ckpt.sum().backward()
+        mem_ckpt = torch.cuda.max_memory_allocated() / (1024 ** 2)
+        print(f"   Peak VRAM (Checkpointing): {mem_ckpt:.2f} MB")
+        
+        # 验证显存必须显著减少
+        assert mem_ckpt < mem_normal * 0.5, "显存并没有显著减少，Checkpointing 未正确生效！"
+        print(f"\n✅ 成功！你用 20% 的时间损耗，换来了 {(1 - mem_ckpt/mem_normal)*100:.1f}% 的显存节省！OOM 杀手已被你掌握。")
+        
+    except NotImplementedError:
+        print("请先完成 TODO 代码！")
+    except Exception as e:
+        print(f"❌ 测试失败: {e}\n提示: 本用例必须在拥有 NVIDIA GPU 的环境下运行。")
+
+test_gradient_checkpointing()
+
+```
+
+::: details 💡 点击查看官方解析与参考代码
+
+---
+
+🛑 **STOP HERE** 🛑
+<br><br><br><br><br><br><br><br><br><br>
+> 请先尝试自己完成代码并跑通测试。<br>
+> 如果你正在 Colab 中运行，并且遇到困难没有思路，可以向下滚动查看参考答案。
+<br><br><br><br><br><br><br><br><br><br>
+
+---
+
+temp_17_exp.md
+
+```python
+temp_17_sol.py
+```
+
+:::
+
+---
+
+> 💡 **有更好的解法或性能优化？**
+> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

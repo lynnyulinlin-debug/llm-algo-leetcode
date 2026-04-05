@@ -1,0 +1,237 @@
+# 13 FlashAttention Sim
+
+> 🚀 **云端运行环境**
+> 
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+> 
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/13_FlashAttention_Sim.ipynb)  
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+# 13. 深入理解 FlashAttention：分块计算与 Online Softmax (纯 PyTorch 模拟)
+
+**难度：** Hard | **标签：** `FlashAttention`, `Memory Bound`, `PyTorch` | **目标人群：** 核心 Infra 与算子开发
+
+在标准的自注意力 (Self-Attention) 机制中，时间复杂度和空间复杂度都是序列长度 $O(N^2)$。当序列变得极长（如 128k, 1M Token），庞大的 $N \times N$ 注意力分数矩阵 $(QK^T)$ 会直接导致显存溢出 (OOM)。
+
+FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想不是减少计算量 (FLOPs 甚至略有增加)，而是通过 **Tiling (分块计算)** 和 **Online Softmax** 彻底避免了将大规模的 $N \times N$ 中间结果写回到缓慢的 GPU 显存 (HBM) 中，从而将空间复杂度降为 $O(N)$，并大幅提升了实际运行速度。
+
+
+本节我们将不用 Triton/CUDA，而是仅用 PyTorch 的循环，在数学逻辑上 1:1 模拟 FlashAttention 的前向计算过程，帮助你彻底弄懂 Online Softmax 是如何工作的。
+
+
+> **相关阅读**:
+> 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
+> 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
+>  [`../03_Triton_Kernels/08_Triton_Flash_Attention.ipynb`](../03_Triton_Kernels/08_Triton_Flash_Attention.ipynb)
+
+
+### Step 1: 核心理论与 Online Softmax
+
+> **标准 Softmax 的痛点：**
+> 1. 求每一行的最大值 $m = \max(x)$ (防溢出)。
+> 2. 求每一行的指数和 $l = \sum e^{x - m}$。
+> 3. 求最终结果 $y_i = \frac{e^{x_i - m}}{l}$。
+> 这意味着在算出所有 $x$ 之前，你无法算出 $m$ 和 $l$，因此必须把所有的 $x$ 先存下来。在 Attention 中，$x$ 就是那个大规模的 $S = QK^T$ 矩阵！
+
+> **Online Softmax 的机制：**
+> 我们可以在只看到**部分数据**时，持续更新一个局部的最大值 $m_{new}$ 和局部的指数和 $l_{new}$。
+> 当新来一个分块 (Block) 时，如果新块的最大值更大，我们可以用一个数学技巧，把之前算好的部分“修正”过来，而不需要重新算前面的块！
+> 
+> **更新公式：**
+> - 新的局部最大值：$m_{new} = \max(m_{old}, m_{block})$
+> - 修正旧的指数和：$l_{new} = l_{old} \cdot e^{m_{old} - m_{new}} + l_{block} \cdot e^{m_{block} - m_{new}}$
+> - 修正旧的输出结果（乘积累加）：$O_{new} = O_{old} \cdot \frac{l_{old} \cdot e^{m_{old} - m_{new}}}{l_{new}} + \frac{e^{S_{block} - m_{new}} \cdot V_{block}}{l_{new}}$
+
+
+### Step 2: Flash Attention 分块机制原理
+由于标准的 Attention 需要 $O(N^2)$ 的显存来存储巨大的 Attention Score 矩阵 $S = QK^T$，当上下文变长时必定 OOM。Flash Attention 巧妙地在序列维度上对 Q, K, V 进行分块（Tiling）。通过外层循环遍历 Q 块，内层循环遍历 K 和 V 块，我们可以在保持数学上完全等价的前提下，将显存消耗降到 $O(N)$。
+
+
+### Step 3: 代码实现框架
+核心是三层嵌套的循环（或者是二维 Grid）。对于当前处理的一小块 $Q_{block}$，在内层遍历所有 $K_{block}$ 时，动态地更新局部最大值 $m$ 和局部指数和 $l$。这是在纯 PyTorch 中使用 `for` 循环来模拟底层 C++ 内存块调度的绝佳方式。
+
+
+###  Step 4: 动手实战
+
+**要求**：请补全下方 `flash_attention_forward_sim` 函数，实现分块 (Tiling) 的 QKV 乘法以及 Online Softmax 逻辑。
+
+
+```python
+import torch
+import math
+
+def flash_attention_forward_sim(q, k, v, block_size=2):
+    """
+    纯 PyTorch 模拟 FlashAttention 前向传播。
+    假设没有 Batch 和 Head 维度，q, k, v 的形状都是 (seq_len, dim)。
+    """
+    seq_len, dim = q.shape
+    
+    # 初始化输出 O，全局最大值 m，全局指数和 l
+    out = torch.zeros((seq_len, dim), device=q.device)
+    m = torch.full((seq_len, 1), -float('inf'), device=q.device)
+    l = torch.zeros((seq_len, 1), device=q.device)
+    
+    scale = 1.0 / math.sqrt(dim)
+    
+    # 外层循环：遍历 Q 的分块 (通常按行划分目标输出)
+    for i in range(0, seq_len, block_size):
+        q_block = q[i:i+block_size] * scale
+        
+        # 内层循环：遍历 K, V 的分块 (计算这一块 Q 与所有 K 的注意力)
+        for j in range(0, seq_len, block_size):
+            k_block = k[j:j+block_size]
+            v_block = v[j:j+block_size]
+            
+            # ==========================================
+            # TODO 1: 计算当前块的未归一化分数 S_ij
+            # S_ij = q_block @ k_block^T
+            # ==========================================
+            # S_ij = ???
+            
+            # ==========================================
+            # TODO 2: 计算当前块的局部最大值 m_block，并求出新的全局最大值 m_new
+            # m_block = S_ij 沿列方向的最大值 (保持维度为二维列向量)
+            # m_new = max(旧的 m_i, m_block)
+            # ==========================================
+            # m_block = ???
+            # m_old = m[i:i+block_size]
+            # m_new = ???
+            
+            # ==========================================
+            # TODO 3: 计算 P_ij = exp(S_ij - m_new)
+            # ==========================================
+            # P_ij = ???
+            
+            # ==========================================
+            # TODO 4: 计算当前块的局部指数和 l_block，并更新全局指数和 l_new
+            # l_block = P_ij 沿列方向的求和 (保持维度为二维列向量)
+            # l_old = l[i:i+block_size]
+            # l_new = l_old * exp(m_old - m_new) + l_block
+            # ==========================================
+            # l_block = ???
+            # l_new = ???
+            
+            # ==========================================
+            # TODO 5: 更新输出 O_i
+            # out_old = out[i:i+block_size]
+            # out_new = (out_old * l_old * exp(m_old - m_new) + P_ij @ v_block) / l_new
+            # 但实际上我们在循环中只保存累加的分子，最后再除以 l_new。
+            # 为了简便，我们在此处每步都更新真正的归一化结果，这就需要：
+            # 去掉旧结果中隐含的 l_old 分母，乘以修正系数，加上新项，再除以全新的分母。
+            # 更简单的迭代公式是：
+            # out_new = diag(l_old * exp(m_old - m_new) / l_new) @ out_old + diag(1 / l_new) @ (P_ij @ v_block)
+            # ==========================================
+            # out[i:i+block_size] = ???
+            
+            # 更新保存的全局状态
+            # m[i:i+block_size] = m_new
+            # l[i:i+block_size] = l_new
+            pass
+            
+    return out
+
+```
+
+```python
+# 测试你的实现
+def test_flash_attention_sim():
+    try:
+        torch.manual_seed(42)
+        seq_len, dim = 8, 4
+        q = torch.randn(seq_len, dim)
+        k = torch.randn(seq_len, dim)
+        v = torch.randn(seq_len, dim)
+        
+        # 1. 计算标准 Attention 作为 Ground Truth
+        scale = 1.0 / math.sqrt(dim)
+        scores = (q @ k.transpose(-2, -1)) * scale
+        attn = torch.nn.functional.softmax(scores, dim=-1)
+        out_ref = attn @ v
+        
+        # 2. 计算模拟的 FlashAttention (使用分块 block_size=2)
+        out_sim = flash_attention_forward_sim(q, k, v, block_size=2)
+        
+        # 3. 验证结果
+        diff = torch.max(torch.abs(out_ref - out_sim))
+        print(f"最大误差: {diff.item():.6e}")
+        assert diff < 1e-5, "计算结果与标准 Attention 不一致！"
+        
+        print("✅ Online Softmax 与分块计算逻辑正确！")
+        print("\n🔥 你已成功通过纯数学推导模拟了 FlashAttention 的核心机制！这让你在面试中解释其原理时能应对自如。")
+        
+    except NotImplementedError:
+        print("请先完成 TODO 代码！")
+    except TypeError as e:
+        print("代码可能未完成，导致了操作错误。")
+    except Exception as e:
+        print(f"❌ 测试失败: {e}")
+
+test_flash_attention_sim()
+
+```
+
+::: details 💡 点击查看官方解析与参考代码
+
+---
+
+🛑 **STOP HERE** 🛑
+<br><br><br><br><br><br><br><br><br><br>
+> 请先尝试自己完成代码并跑通测试。<br>
+> 如果你正在 Colab 中运行，并且遇到困难没有思路，可以向下滚动查看参考答案。
+<br><br><br><br><br><br><br><br><br><br>
+
+---
+
+使用双重循环遍历 Q 和 K/V 分块，每次计算内积 {ij}$。找到局部最大值 {block}$ 并更新到全局最大值 {new}$。通过 ^{S_{ij}-m_{new}}$ 算出局部指数分母并求和，同时通过乘积累加的方法用相同的指数项修正旧的全局指数和及过去的输出 {old}$。这完全避免了写回中间的  \times N$ 矩阵。
+
+```python
+def flash_attention_forward_solution(q, k, v, block_size=2):
+    seq_len, dim = q.shape
+    
+    out = torch.zeros((seq_len, dim), device=q.device)
+    m = torch.full((seq_len, 1), -float('inf'), device=q.device)
+    l = torch.zeros((seq_len, 1), device=q.device)
+    
+    scale = 1.0 / math.sqrt(dim)
+    
+    for i in range(0, seq_len, block_size):
+        q_block = q[i:i+block_size] * scale
+        
+        for j in range(0, seq_len, block_size):
+            k_block = k[j:j+block_size]
+            v_block = v[j:j+block_size]
+            
+            # TODO 1: 计算当前块的未归一化分数 S_ij
+            S_ij = q_block @ k_block.T
+            
+            # TODO 2: 计算当前块的局部最大值 m_block，并求出新的全局最大值 m_new
+            m_block = torch.max(S_ij, dim=1, keepdim=True).values
+            m_old = m[i:i+block_size]
+            m_new = torch.max(m_old, m_block)
+            
+            # TODO 3: 计算 P_ij = exp(S_ij - m_new)
+            P_ij = torch.exp(S_ij - m_new)
+            
+            # TODO 4: 计算当前块的局部指数和 l_block，并更新全局指数和 l_new
+            l_block = torch.sum(P_ij, dim=1, keepdim=True)
+            l_old = l[i:i+block_size]
+            l_new = l_old * torch.exp(m_old - m_new) + l_block
+            
+            # TODO 5: 更新输出 O_i
+            out_old = out[i:i+block_size]
+            out[i:i+block_size] = (out_old * l_old * torch.exp(m_old - m_new) + P_ij @ v_block) / l_new
+            
+            # 更新保存的全局状态
+            m[i:i+block_size] = m_new
+            l[i:i+block_size] = l_new
+            
+    return out
+```
+
+:::
+
+---
+
+> 💡 **有更好的解法或性能优化？**
+> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！
