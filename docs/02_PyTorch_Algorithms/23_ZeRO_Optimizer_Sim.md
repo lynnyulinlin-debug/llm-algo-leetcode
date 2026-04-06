@@ -1,10 +1,10 @@
-# 21 ZeRO Optimizer Sim
+# 23 ZeRO Optimizer Sim
 
 > 🚀 **云端运行环境**
 > 
 > 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
 > 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/21_ZeRO_Optimizer_Sim.ipynb)  
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/23_ZeRO_Optimizer_Sim.ipynb)  
 > [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
 # 21. 显存优化进阶：模拟 ZeRO-1 切分与 ZeRO-2/3 原理 (DeepSpeed)
