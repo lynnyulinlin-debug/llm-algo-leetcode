@@ -6,7 +6,7 @@
 
 > **相关阅读**:  
 > 请前往实战篇进行相关代码练习：  
-> [`../02_PyTorch_Algorithms/16_Quantization_W8A16.md`](../02_PyTorch_Algorithms/16_Quantization_W8A16.md)    
+> [`../02_PyTorch_Algorithms/20_Quantization_W8A16.md`](../02_PyTorch_Algorithms/20_Quantization_W8A16.md)    
 > [`../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.md`](../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.md)    
 
 ---

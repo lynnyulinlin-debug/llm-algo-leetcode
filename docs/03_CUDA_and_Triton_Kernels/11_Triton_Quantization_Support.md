@@ -19,7 +19,7 @@
 
 > **相关阅读**:  
 > 如果你对量化的数学公式推导和纯 PyTorch 实现还不熟悉，建议先复习 PyTorch 篇：
-> [`../02_PyTorch_Algorithms/16_Quantization_W8A16.ipynb`](../02_PyTorch_Algorithms/16_Quantization_W8A16.ipynb)
+> [`../02_PyTorch_Algorithms/20_Quantization_W8A16.ipynb`](../02_PyTorch_Algorithms/20_Quantization_W8A16.ipynb)
 
 ### Step 1: 融合反量化矩阵乘法的核心思想
 

@@ -7,8 +7,8 @@
 
 > **相关阅读**:  
 > 请前往实战篇进行相关代码练习：  
-> [`../02_PyTorch_Algorithms/17_Gradient_Checkpointing.md`](../02_PyTorch_Algorithms/17_Gradient_Checkpointing.md)  
-> [`../02_PyTorch_Algorithms/19_ZeRO_1_Optimizer_Sim.md`](../02_PyTorch_Algorithms/19_ZeRO_1_Optimizer_Sim.md)  
+> [`../02_PyTorch_Algorithms/21_Gradient_Checkpointing.md`](../02_PyTorch_Algorithms/21_Gradient_Checkpointing.md)  
+> [`../02_PyTorch_Algorithms/23_ZeRO_Optimizer_Sim.md`](../02_PyTorch_Algorithms/23_ZeRO_Optimizer_Sim.md)  
 
 ---
 

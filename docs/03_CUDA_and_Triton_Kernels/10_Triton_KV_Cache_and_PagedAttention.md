@@ -19,7 +19,7 @@
 > **相关阅读**:
 > 本节使用 Triton 实现了底层的极致显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/15_vLLM_PagedAttention.ipynb`](../02_PyTorch_Algorithms/15_vLLM_PagedAttention.ipynb)
+>  [`../02_PyTorch_Algorithms/17_vLLM_PagedAttention.ipynb`](../02_PyTorch_Algorithms/17_vLLM_PagedAttention.ipynb)
 
 
 ### Step 1: Paged KV Cache 的物理存储与逻辑映射

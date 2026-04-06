@@ -7,7 +7,7 @@
 
 > **相关阅读**:  
 > 请前往实战篇进行相关代码练习：  
-> [`../02_PyTorch_Algorithms/20_Tensor_Parallelism_Sim.md`](../02_PyTorch_Algorithms/20_Tensor_Parallelism_Sim.md)  
+> [`../02_PyTorch_Algorithms/24_Tensor_Parallelism_Sim.md`](../02_PyTorch_Algorithms/24_Tensor_Parallelism_Sim.md)  
 > [`../03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.md`](../03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.md)  
 
 ---
