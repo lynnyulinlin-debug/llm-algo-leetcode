@@ -18,7 +18,7 @@ SwiGLU 激活函数由两个线性层输出的非线性组合构成：$SwiGLU(x,
 > **相关阅读**:
 > 本节使用 Triton 实现了底层的极致显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/02_SwiGLU_Activation.ipynb`](../02_PyTorch_Algorithms/02_SwiGLU_Activation.ipynb)
+>  [`../02_PyTorch_Algorithms/02_SwiGLU_Activation.md`](../02_PyTorch_Algorithms/02_SwiGLU_Activation.md)
 
 
 ### Step 1: 算子融合的本质

@@ -19,7 +19,7 @@
 > **相关阅读**:
 > 本节使用 Triton 实现了高阶的 Token 级动态路由与融合推理。
 > 如果你对该算子的基础 PyTorch 层面的权重分解与训练不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/10_LoRA_Tutorial.ipynb`](../02_PyTorch_Algorithms/10_LoRA_Tutorial.ipynb)
+>  [`../02_PyTorch_Algorithms/10_LoRA_Tutorial.md`](../02_PyTorch_Algorithms/10_LoRA_Tutorial.md)
 
 ### Step 1: Multi-LoRA 内存池与 Batch 路由
 
