@@ -83,7 +83,7 @@ export default defineConfig({
           { text: '18. Quantization W8A16', link: '/02_PyTorch_Algorithms/18_Quantization_W8A16' },
           { text: '19. Gradient Checkpointing', link: '/02_PyTorch_Algorithms/19_Gradient_Checkpointing' },
           { text: '20. QLoRA and 4bit Quantization', link: '/02_PyTorch_Algorithms/20_QLoRA_and_4bit_Quantization' },
-          { text: '21. ZeRO 1 Optimizer Sim', link: '/02_PyTorch_Algorithms/21_ZeRO_1_Optimizer_Sim' },
+          { text: '21. ZeRO Optimizer Sim', link: '/02_PyTorch_Algorithms/21_ZeRO_Optimizer_Sim' },
           { text: '22. Tensor Parallelism Sim', link: '/02_PyTorch_Algorithms/22_Tensor_Parallelism_Sim' }
         ]
       },

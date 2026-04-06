@@ -1,13 +1,13 @@
-# 21 ZeRO 1 Optimizer Sim
+# 21 ZeRO Optimizer Sim
 
 > 🚀 **云端运行环境**
 > 
 > 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
 > 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/21_ZeRO_1_Optimizer_Sim.ipynb)  
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/21_ZeRO_Optimizer_Sim.ipynb)  
 > [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
-# 21. 显存优化进阶方案：模拟 ZeRO-1 优化器状态切分 (DeepSpeed)
+# 21. 显存优化进阶：模拟 ZeRO-1 切分与 ZeRO-2/3 原理 (DeepSpeed)
 
 **难度：** Hard | **标签：** `Distributed Training`, `ZeRO`, `Memory Bound` | **目标人群：** 核心 Infra 与算子开发
 
@@ -164,6 +164,33 @@ def test_zero1_sim():
 test_zero1_sim()
 
 ```
+
+### Step 4: ZeRO 家族的终极进化 (ZeRO-1 vs ZeRO-2 vs ZeRO-3)
+
+在上面的代码中，我们成功模拟了 ZeRO-1。但微软 DeepSpeed 团队并没有止步于此。为了训练千亿甚至万亿参数的模型，他们提出了完整的 ZeRO 三部曲。
+
+这是大厂分布式训练岗位**必考**的硬核知识点：
+
+> **模型训练的显存大头（以 FP16 混合精度 + Adam 为例）：**
+> 假设模型参数量为 $\Phi$。
+> 1. **模型参数 (FP16)**：$2\Phi$ bytes
+> 2. **梯度 (FP16)**：$2\Phi$ bytes
+> 3. **优化器状态 (FP32)**：包含 FP32的参数备份 ($4\Phi$) + FP32的一阶动量 ($4\Phi$) + FP32的二阶动量 ($4\Phi$) = $12\Phi$ bytes
+> **总计：至少 $16\Phi$ 的显存（还不算 Activation）。**
+
+#### ZeRO-1：切分优化器状态 ($P_{os}$)
+- **原理**：正如我们刚刚手写的，只把 $12\Phi$ 的优化器状态切分到 $N$ 张卡上。
+- **显存占用**：$2\Phi + 2\Phi + \frac{12\Phi}{N}$。通信量与数据并行 (DP) 完全相同。
+
+#### ZeRO-2：切分梯度 ($P_{os+g}$)
+- **原理**：在 ZeRO-1 的基础上，进一步切分梯度。既然第 $i$ 张卡只负责更新第 $i$ 块参数，那么在反向传播算完梯度后，它**只需要保留第 $i$ 块的梯度**，把其他的梯度直接扔掉释放显存！
+- **通信变化**：传统的 DP 在反向传播后做 `All-Reduce`（求和并广播）。ZeRO-2 改为 `Reduce-Scatter`（求和但只把各自负责的那块梯度发给对应的卡）。
+- **显存占用**：$2\Phi + \frac{2\Phi}{N} + \frac{12\Phi}{N}$。
+
+#### ZeRO-3：切分参数 ($P_{os+g+p}$)
+- **原理**：丧心病狂的终极方案。每张卡连完整的模型参数都不存了！平时只存自己负责的那一小块参数。当前向/反向传播走到某一层时，通过 `All-Gather` 从其他卡把那一层的参数**临时广播过来**，算完立马删掉！
+- **通信变化**：牺牲了高达 50% 的额外通信量（因为要在前反向频繁 All-Gather），换取了无限的显存上限。
+- **显存占用**：$\frac{16\Phi}{N}$。只要卡数 $N$ 足够多，再大的模型也能装得下！
 
 ---
 
