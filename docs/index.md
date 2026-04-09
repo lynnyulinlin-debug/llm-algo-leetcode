@@ -2,19 +2,19 @@
 layout: home
 
 hero:
-  name: "LLM-LeetCode"
+  name: "LLM-Algo-LeetCode"
   text: "大语言模型算法工程师工程实战题库"
   tagline: "系统性、可交互、带评测的工程实战复习指南"
   image:
     src: /learning.GIF
-    alt: LLM-LeetCode
+    alt: LLM-Algo-LeetCode
   actions:
     - theme: brand
       text: 开始刷题 (Start Here)
       link: /01_Hardware_Math_and_Systems/01_Data_Types_and_Precision
     - theme: alt
       text: GitHub 仓库
-      link: https://github.com/lynnyulinlin-debug/llm-algo-leetcode
+      link: https://github.com/datawhalechina/llm-algo-leetcode
 
 features:
   - title:  高度垂直

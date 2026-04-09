@@ -6,7 +6,7 @@ const baseConfig = isEdgeOne ? '/' : '/llm-algo-leetcode/'
 export default defineConfig({
   lang: 'zh-CN',
   title: "LLM-Algo-LeetCode",
-  description: "大语言模型算法与系统实战库",
+  description: "大语言模型算法实战库",
   base: baseConfig,
   ignoreDeadLinks: true,
   markdown: {
@@ -117,10 +117,10 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/lynnyulinlin-debug/llm-algo-leetcode' }
+      { icon: 'github', link: 'https://github.com/datawhalechina/llm-algo-leetcode' }
     ],
     editLink: {
-      pattern: 'https://github.com/lynnyulinlin-debug/llm-algo-leetcode/blob/main/docs/:path'
+      pattern: 'https://github.com/datawhalechina/llm-algo-leetcode/blob/main/docs/:path'
     },
     footer: {
       message: 'Released under the MIT License.',
