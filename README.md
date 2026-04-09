@@ -30,7 +30,7 @@
 
 我们已将所有教程整合为一个排版精美的静态网页（基于 VitePress），提供沉浸式的阅读体验与问答社区：
 
-👉 **[LLM-Algo-LeetCode 在线刷题网站](https://lynnyulinlin-debug.github.io/llm-algo-leetcode/)** 👈 *(此处链接需替换为实际部署地址)*
+👉 **[LLM-Algo-LeetCode 在线刷题网站](https://datawhalechina.github.io/llm-algo-leetcode/)** 👈 *(此处链接需替换为实际部署地址)*
 
 ### 💡 如何“刷题”与运行代码？
 本项目采用了 **“阅读在网页，运行在云端”** 的分离模式，以实现零环境配置的 GPU 刷题体验：
