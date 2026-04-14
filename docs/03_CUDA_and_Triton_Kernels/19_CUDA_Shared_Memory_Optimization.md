@@ -1,20 +1,18 @@
-# 19 CUDA Shared Memory Optimization
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/19_CUDA_Shared_Memory_Optimization.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 19. 榨干硬件极限：CUDA Shared Memory (共享内存) 优化与 GEMM
+# 19. CUDA Shared Memory Optimization | 榨干硬件极限：CUDA Shared Memory (共享内存) 优化与 GEMM
 
 **难度：** Hard | **标签：** `CUDA C++`, `Shared Memory`, `GEMM` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/19_CUDA_Shared_Memory_Optimization.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在 Triton 中，我们在 Python 里通过 `tl.load()` 拉取数据到 SRAM 并在上面算点积。Triton 编译器帮我们自动处理了所有的底层痛点：共享内存的分配、跨线程的数据同步、甚至 Bank Conflict (存储体冲突) 的避免。
 然而，要真正理解 GPU 的优化极限，你必须手写一次 **Shared Memory Tiling (共享内存分块矩阵乘法)**。
 本节我们将继续使用 C++ JIT 编译，在原生 CUDA 中显式声明 `__shared__` 数组，让 Block 内的 Threads 协作搬运数据，并通过 `__syncthreads()` 完成极速矩阵乘！
-
 
 ### Step 1: 共享内存在 CUDA 中的使用
 
@@ -30,14 +28,11 @@
 > **变量修饰符：**
 > 在 C++ 代码中，只需在变量前加上 `__shared__` 关键字，GPU 就会将其分配到 SRAM。
 
-
 ### Step 2: 共享内存 与分块乘法的究极奥义
 如果直接写 CUDA 版的矩阵乘法，将遭受灾难性的 Global Memory（HBM）带宽惩罚。为了榨干硬件，必须借用 Block 级共享内存（Shared Memory，访问延迟仅约10周期）。将原矩阵划分为二维 Tile（瓷砖）。每次外层循环中，整个 Block 内的线程通力合作，把瓷砖搬进 Shared Memory，调用 `__syncthreads()` 后利用内部点积计算累加和。
 
-
 ### Step 3: 共享内存矩阵乘代码框架
 声明 `__shared__ float s_A[TILE_SIZE][TILE_SIZE];` 和 `s_B`。在迭代过程中，利用二维的 `threadIdx.x` 和 `threadIdx.y` 将数据从内存拖拽到 SRAM 中。完成同步屏障后，用一个很短的 for 循环计算该子块的点积，最后覆盖写入结果矩阵。
-
 
 ###  Step 4: 动手实战
 
@@ -159,6 +154,7 @@ except Exception as e:
 
 ```
 
+
 ```python
 # 测试并体会极速 SRAM 的魅力
 def test_shared_gemm():
@@ -202,9 +198,6 @@ test_shared_gemm()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 
 ### 💡 核心实现原理解析
 
@@ -285,10 +278,3 @@ torch::Tensor shared_gemm_cuda(torch::Tensor A, torch::Tensor B) {
 }
 '''
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

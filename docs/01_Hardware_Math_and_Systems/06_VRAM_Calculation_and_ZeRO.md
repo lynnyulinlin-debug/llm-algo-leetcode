@@ -1,4 +1,4 @@
-# 讨论题 06：显存计算与 ZeRO 优化 (VRAM Calculation & ZeRO)
+# 06. VRAM Calculation and ZeRO | 显存计算与 ZeRO 优化 (VRAM Calculation & ZeRO)
 
 **难度：** Hard | **标签：** `算力评估`, `ZeRO` | **目标人群：** 模型微调与工程部署
 

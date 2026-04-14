@@ -1,20 +1,18 @@
-# 05 Triton Autotune and Profiling
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/05_Triton_Autotune_and_Profiling.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 05. Triton 性能调优与基准测试 (Autotune & Profiling)
+# 05. Triton Autotune and Profiling | Triton 性能调优与基准测试 (Autotune & Profiling)
 
 **难度：** Medium | **标签：** `Triton`, `Profiling`, `Autotuning` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/05_Triton_Autotune_and_Profiling.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在工业界，实现结果正确的算子只是第一步。真正的核心竞争力在于**如何证明算子的性能优势**，以及**如何压榨出硬件的极限性能**。
 不同大小的张量、不同的 GPU 架构（A100 vs H100）对最佳的 `BLOCK_SIZE` 和 `num_warps` (线程束数量) 的要求是不同的。Triton 提供了 `@triton.autotune` 装饰器来实现**启发式搜索**，以及 `triton.testing.perf_report` 来绘制专业的性能吞吐量曲线图。
 本节我们将以一个 Element-wise 操作为例，展示如何自动化搜索最优配置并生成 Profiling 报告。
-
 
 ### Step 1: 调优与测速的核心概念
 
@@ -26,14 +24,11 @@
 > 算子实现后，我们需要绘制一条横轴为 `N` (数据量大小)，纵轴为 `GB/s` (显存带宽吞吐) 或 `TFLOPs` (计算吞吐) 的折线图。
 > 通过 `@triton.testing.perf_report` 装饰器，我们可以优雅地对比 `PyTorch 原生` 和 `Triton 算子` 在不同数据规模下的性能差异。
 
-
 ### Step 2: 吞吐量 的物理意义
 在优化算子时，我们需要衡量它离硬件物理极限还有多远。对于 Memory Bound 算子，我们的评价指标是带宽 (GB/s)，即算法处理数据的字节数除以耗时。对于 Compute Bound 算子 (如 GEMM)，指标是算力 (TFLOPS)。通过 `triton.testing.perf_report`，我们可以可视化展示不同尺寸下的性能。
 
-
 ### Step 3: Profiling 代码框架
 定义一个 `triton.testing.Benchmark` 实例，指明 X 轴测试变量的区间范围、图表的标题等。然后编写一个 `benchmark` 函数，在内部使用 `do_bench` 获得精确的毫秒级执行时间，最后转换换算并返回。
-
 
 ###  Step 4: 动手实战
 
@@ -112,6 +107,7 @@ def benchmark(size, provider):
 
 ```
 
+
 ```python
 # 运行基准测试并打印结果
 # 请在带有 NVIDIA GPU 的机器上运行
@@ -137,9 +133,6 @@ else:
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 📝 Autotune 参考实现解析
 
 1. **`@triton.autotune`**: 我们提供了从 `512` 到 `8192` 不同的 `BLOCK_SIZE` 配置，并相应搭配了不同的 `num_warps`。通常，更大的 Block 需要更多的 Warps 来隐藏内存延迟。
@@ -193,10 +186,3 @@ def triton_vector_add_autotune(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor
     return out
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

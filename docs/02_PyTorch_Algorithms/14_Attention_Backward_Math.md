@@ -1,15 +1,14 @@
-# 14 Attention Backward Math
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/14_Attention_Backward_Math.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 14. 注意力机制反向传播推导与自定义 Autograd (Attention Backward)
+# 14. Attention Backward Math | 注意力机制反向传播推导与自定义 Autograd (Attention Backward)
 
 **难度：** Hard | **标签：** `微积分`, `PyTorch`, `Autograd` | **目标人群：** 底层算子开发、高阶算法面试
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/14_Attention_Backward_Math.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在第 04 节，我们完成了多头注意力机制（MHA）的前向传播搭建。然而，**“大模型训练”与“推理”核心挑战之一在于反向传播 (Backward Pass)。**
 
@@ -18,7 +17,6 @@
 在下一节正式进入 FlashAttention 之前，我们必须跨过这座高山：**彻底搞懂 Attention 反向传播的微积分推导，并抛弃 PyTorch 原生的 `.backward()`，利用 `torch.autograd.Function` 写出它的反向梯度计算代码！**
 
 这是底层架构岗位的常见考核点。
-
 ### Step 1: 前向传播回顾与变量定义
 
 为了不打断思路，我们先简洁回顾一下 04 节的单头 Attention 前向公式（省略缩放因子 $\sqrt{d}$ 简化推导，后文代码中会加回）：
@@ -31,7 +29,6 @@
 > - $Q, K, V \in \mathbb{R}^{N \times d}$ (序列长度 $N$，特征维数 $d$)
 > - $S, P \in \mathbb{R}^{N \times N}$
 > - $O \in \mathbb{R}^{N \times d}$
-
 ### Step 2: 链式法则逆流而上 (微积分时间)
 
 假设下游的损失函数已经帮我们算好了输出张量 $O$ 的梯度 $\nabla O$（通常简写为 $dO$）。我们的任务是求出 $dQ, dK, dV$。
@@ -54,7 +51,6 @@ $$ dS = P \odot (dP - \text{row\_sum}(P \odot dP)) $$
 此时我们已经拿到了 $dS$。因为 $S = Q K^T$（如果带缩放因子则是 $S = \frac{Q K^T}{\sqrt{d}}$）：
 $$ dQ = \frac{dS \cdot K}{\sqrt{d}} $$
 $$ dK = \frac{dS^T \cdot Q}{\sqrt{d}} $$
-
 ### Step 3: 手撕 PyTorch Autograd Function
 
 现在，把你刚才看到的微积分公式，转化为能够实际运行的代码。我们将继承 `torch.autograd.Function`。
@@ -126,6 +122,7 @@ class CustomAttention(torch.autograd.Function):
         return dq, dk, dv
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_attention_backward():
@@ -175,7 +172,6 @@ test_attention_backward()
 > **答案预告**：不存 $P$！我们在反向传播需要 $P$ 的时候，**拿 $Q$ 和 $K$ 现场重算一次 $P$（Recomputation）！** 通过巧妙的 SRAM 分块加载机制，虽然计算量变大了，但因为避免了把庞大的 $P$ 写入又读出极其缓慢的 HBM，最终不但不 OOM，**速度反而变快了 3 倍！**
 
 这就是下一节业界广泛使用的 **FlashAttention** 所做的事。
-
 ---
 
 🛑 **STOP HERE** 🛑
@@ -185,9 +181,6 @@ test_attention_backward()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 Attention 梯度的核心在于处理 Softmax 的雅可比矩阵。对于 $dP$，通过矩阵转置操作可以轻松由链式法则获得；随后通过提取 $P \odot dP$ 并对行求和，构造出 Softmax 的反向传播梯度 $dS$。这也是理解重计算（Recomputation）技术以节省大规模训练显存的理论基础。
 
 ```python
@@ -233,10 +226,3 @@ class CustomAttention(torch.autograd.Function):
         return dq, dk, dv
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

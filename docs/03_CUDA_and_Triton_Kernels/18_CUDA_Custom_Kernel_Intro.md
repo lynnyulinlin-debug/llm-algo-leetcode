@@ -1,20 +1,18 @@
-# 18 CUDA Custom Kernel Intro
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/18_CUDA_Custom_Kernel_Intro.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 18. 硬核降维打击：原生 CUDA C++ 编程与 PyTorch C++ 扩展 (JIT)
+# 18. CUDA Custom Kernel Intro | 硬核降维打击：原生 CUDA C++ 编程与 PyTorch C++ 扩展 (JIT)
 
 **难度：** Hard | **标签：** `CUDA C++`, `JIT Extension`, `Vector Add` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/18_CUDA_Custom_Kernel_Intro.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 如果你在面试中只懂写 Triton，虽然能解决日常的算子融合问题，但面试官一定会问你：“Triton 底层的 Grid/Block 是怎么映射到 CUDA 线程的？”
 本节我们将打破 Python 的温室，使用 `torch.utils.cpp_extension.load_inline`，直接在 Jupyter Notebook 的字符串里**手撕原生 CUDA C++ 核函数**，并且在后台即时 (JIT) 编译成 PyTorch 可用的模块。
 我们将从最经典的 Vector Add (向量加法) 开始，直观对比 Triton 的 `pid` 和 CUDA 的 `blockIdx.x * blockDim.x + threadIdx.x`。
-
 
 ### Step 1: CUDA 编程模型核心
 
@@ -31,17 +29,14 @@
 > - 在 **Triton** 中，我们通常让一个 Program (相当于 CUDA 的一个 Block) 负责处理一个长度为 `BLOCK_SIZE` 的张量切片 (通过循环和 Mask)。
 > - 在 **CUDA** 中，我们是为每一个标量元素 (Element) 分配一个 Thread！这种**细粒度**带来了极高的开发门槛，但也赋予了对硬件绝对的控制权。
 
-
 ### Step 2: CUDA 编程模型核心
 从纯 Python 跨越到底层，最重要的是理解硬件线程层级：
 1. **Thread (线程)**：底层的计算单元，负责单个数据元素。
 2. **Block (线程块)**：一组协作的 Thread，共享极速小内存 (Shared Memory)，可在块内同步步调。通常包含 128 或 256 个线程。
 3. **Grid (网格)**：一堆独立的 Block 组成 Grid，彼此无法直接通信。这极度贴合了矩阵并行的需求。
 
-
 ### Step 3: 原生 CUDA 与 PyTorch JIT 扩展框架
 用 `__global__` 修饰 C++ CUDA Kernel，利用 `threadIdx.x` 和 `blockIdx.x` 定位数组下标。使用 PyTorch 的 `torch.utils.cpp_extension.load_inline`，它能在 Jupyter 运行时，唤起 `nvcc` 将 C++ 字符串编译成 Python 可直接引用的模块。
-
 
 ###  Step 4: 动手实战
 
@@ -134,6 +129,7 @@ except Exception as e:
 
 ```
 
+
 ```python
 # 测试你的 CUDA C++ 算子
 def test_cuda_vector_add():
@@ -177,9 +173,6 @@ test_cuda_vector_add()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 
 ### 💡 核心实现原理解析
 
@@ -236,10 +229,3 @@ torch::Tensor vector_add_cuda(torch::Tensor x, torch::Tensor y) {
 }
 '''
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

@@ -1,15 +1,14 @@
-# 07 Triton Fused RoPE
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/07_Triton_Fused_RoPE.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 07. Triton 进阶：融合旋转位置编码 (Fused RoPE)
+# 07. Triton Fused RoPE | Triton 进阶：融合旋转位置编码 (Fused RoPE)
 
 **难度：** Hard | **标签：** `Triton`, `RoPE`, `Llama` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/07_Triton_Fused_RoPE.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在 `02_PyTorch_Algorithms` 章节中，我们学习过 LLaMA 的 RoPE 是通过将连续特征配对，进行复数旋转注入位置信息的。
 标准的 PyTorch 实现涉及张量切片 (`x[..., 0::2]`)、拼接 (`cat`) 以及逐元素乘法 (`* cos`, `* sin`)，在推理时高度消耗显存带宽。
@@ -19,8 +18,7 @@
 > **相关阅读**:
 > 本节使用 Triton 实现了底层的极致显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/03_RoPE_Tutorial.md`](../02_PyTorch_Algorithms/03_RoPE_Tutorial.md)
-
+>  [`../02_PyTorch_Algorithms/03_RoPE_Tutorial.ipynb`](../02_PyTorch_Algorithms/03_RoPE_Tutorial.md)
 
 ### Step 1: RoPE 的物理内存布局与并行策略
 
@@ -39,14 +37,11 @@
 > 5. 在 SRAM 中执行旋转乘加运算。
 > 6. 将结果按照交错顺序 Store 回显存（就地修改）。
 
-
 ### Step 2: RoPE 物理内存布局与并行策略
 传统 PyTorch 在执行 RoPE 时会产生切片（Slicing），带来严重的 Memory Bound 碎片开销。通过 Triton 融合，我们可以编写一个 In-place 算子：将奇数列和偶数列的旋转直接在 SRAM 计算后原路写回所在的显存地址，彻底消除内存抖动。
 
-
 ### Step 3: In-place 内核代码框架
 内核需要获取当前特征向量的前半部分指针和后半部分指针。利用预先计算好的 `cos` 和 `sin` 块缓存，执行 $X_{new} = X \cdot \cos - X_{shift} \cdot \sin$ 逻辑，并将结果强行覆盖写入原有的 $X$ 指针地址。
-
 
 ###  Step 4: 动手实战
 
@@ -128,6 +123,7 @@ def triton_apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
     return x
 
 ```
+
 
 ```python
 # 测试你的实现
@@ -212,9 +208,6 @@ test_fused_rope()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 📝 Fused RoPE 参考实现解析
 
 1. **多维 Grid 寻址**: 不同于之前我们用 1D Grid 自己算偏移，Triton 支持最高 3D 的 Grid。对于 `[Batch, Seq, Head]` 刚好对应 3 个维度。使用 `pid_seq * stride_seq + pid_head * stride_head` 这样的形式可以精准跳转到连续内存中的对应位置。
@@ -286,10 +279,3 @@ def triton_apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
     return x
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

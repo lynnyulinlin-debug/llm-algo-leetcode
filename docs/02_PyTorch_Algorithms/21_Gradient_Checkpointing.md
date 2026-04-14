@@ -1,19 +1,17 @@
-# 21 Gradient Checkpointing
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/21_Gradient_Checkpointing.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 21. 极致显存优化：激活值重计算 (Gradient Checkpointing)
+# 21. Gradient Checkpointing | 极致显存优化：激活值重计算 (Gradient Checkpointing)
 
 **难度：** Medium | **标签：** `训练优化`, `Memory Bound`, `PyTorch` | **目标人群：** 核心 Infra 与算子开发
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/21_Gradient_Checkpointing.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 在算显存的时候，很多初学者只算“权重和优化器”，却发现一跑模型就 OOM（显存溢出）。这是因为在长序列（Long Context）的大模型前向传播中，**保存下来的激活值 (Activations)** 才是占据显存的真正巨兽。
 本节我们将演示如何用“时间换空间”的思想——也就是 **Gradient Checkpointing (梯度检查点 / 重计算)**，将激活用量呈平方根级别缩减。
-
 
 ### Step 1: 核心思想与痛点
 
@@ -25,14 +23,11 @@
 > 等到反向传播算到这儿时，我们从上一个存活的检查点开始，**把这一小段前向传播再重新算一遍 (Recomputation)** 来恢复激活值，接着立刻算梯度。
 > **结果：多花了大概 20%-30% 的时间算前向，但省下了成倍甚至十倍的显存！**
 
-
 ### Step 2: 激活值重计算原理
 在训练极深的模型时，保存前向传播中所有的中间激活值（Activation）会消耗巨大的显存。Gradient Checkpointing 的思想是：只在特定的层（如每 4 层）保存中间结果。在反向传播时，如果需要某个丢弃的激活值，就从最近的 Checkpoint 重新前向计算一次。这用“时间换空间”的方式节省了高达数倍的显存。
 
-
 ### Step 3: 代码实现框架
 在 PyTorch 中，这可以通过调用 `torch.utils.checkpoint.checkpoint` 轻松实现。你只需要将需要重计算的前向传播函数包装进去即可。底层的 Autograd 会自动替你管理何时释放、何时重新计算激活图。
-
 
 ###  Step 4: 动手实战
 
@@ -82,6 +77,7 @@ def run_with_checkpointing(blocks: nn.ModuleList, x: torch.Tensor):
     return x
 
 ```
+
 
 ```python
 # 运行此单元格以测试你的实现
@@ -143,9 +139,6 @@ test_gradient_checkpointing()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 梯度检查点（Gradient Checkpointing）是一种以计算换显存的技术。它的核心是在前向传播时不保存部分激活值，而在反向传播需要时重新计算这些激活值，从而在有限的显存中训练超大规模模型。
 
 ```python
@@ -155,10 +148,3 @@ def gradient_checkpointing_forward(module, *inputs):
     
     return torch.utils.checkpoint.checkpoint(custom_forward, *inputs, use_reentrant=False)
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

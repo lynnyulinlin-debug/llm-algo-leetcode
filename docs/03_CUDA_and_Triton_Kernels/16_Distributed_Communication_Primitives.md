@@ -1,19 +1,17 @@
-# 16 Distributed Communication Primitives
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 16. 分布式进阶：多机通信原语实战 (All-Reduce, All-Gather)
+# 16. Distributed Communication Primitives | 分布式进阶：多机通信原语实战 (All-Reduce, All-Gather)
 
 **难度：** Hard | **标签：** `Distributed Training`, `NCCL`, `Communication Primitives` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/16_Distributed_Communication_Primitives.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 在前几节的 ZeRO-1 和 TP (张量并行) 中，我们只是通过**数组切片**逻辑上模拟了分布式计算。
 但在真实的工业界集群中（如 8 张 A100 甚至千卡集群），GPU 之间必须通过 NCCL (Nvidia Collective Communication Library) 进行真实的物理数据交换。
 本节我们将深入 `torch.distributed`，实战最核心的两大通信原语：`All-Reduce` 和 `All-Gather`。这也是面试极其高频的考点（如何计算通信量？Ring-AllReduce 怎么跑的？）。
-
 
 ### Step 1: 集合通信原语的本质
 
@@ -27,10 +25,8 @@
 > - **底层逻辑：** 每张卡把自己的那块数据广播给其他所有人。
 > - **ZeRO-3 中的应用：** 每张卡只有自己负责的 $\frac{1}{N}$ 权重，在前向传播时，必须通过 `All-Gather` 临时把完整权重拼出来才能算矩阵乘法。
 
-
 ### Step 2: torch.distributed 代码框架
 利用 `torch.distributed.init_process_group(backend='nccl')` 初始化通信后端。获取 `dist.get_rank()` (当前 GPU 编号) 和 `dist.get_world_size()` (总 GPU 数) 后，执行 `dist.all_reduce(tensor)` 或 `dist.all_gather(tensor_list, local_tensor)` 进行原语调用。
-
 
 ###  Step 3: 动手实战
 
@@ -110,6 +106,7 @@ def simulate_distributed_primitives(num_gpus=2):
 
 ```
 
+
 ```python
 # 运行分布式模拟测试
 def test_distributed():
@@ -135,9 +132,6 @@ test_distributed()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 
 ### 💡 核心实现原理解析
 
@@ -184,10 +178,3 @@ def run_worker(rank, world_size):
     finally:
         dist.destroy_process_group()
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

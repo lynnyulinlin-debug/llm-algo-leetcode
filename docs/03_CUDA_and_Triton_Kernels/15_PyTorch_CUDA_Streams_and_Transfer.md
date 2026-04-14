@@ -1,20 +1,18 @@
-# 15 PyTorch CUDA Streams and Transfer
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/15_PyTorch_CUDA_Streams_and_Transfer.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 15. 突破 PCIe 瓶颈：CPU-GPU 锁页内存与 CUDA 异步流通信
+# 15. PyTorch CUDA Streams and Transfer | 突破 PCIe 瓶颈：CPU-GPU 锁页内存与 CUDA 异步流通信
 
 **难度：** Hard | **标签：** `System`, `CUDA Streams`, `Memory Transfer` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/15_PyTorch_CUDA_Streams_and_Transfer.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在训练大模型的数据加载 (Data Loading) 或者推理时 Offload 权重/KV Cache 到内存中时，CPU 到 GPU 的 PCIe 传输带宽往往会成为严重的性能瓶颈。
 在 PyTorch 中，简单的 `.cuda()` 或 `.to('cuda')` 是一把双刃剑：它在底层是同步阻塞的。如果等待数据传完才开始计算，GPU 就会处于饥饿状态 (Compute Starvation)。
 本节我们将深入 PyTorch 底层系统调用，通过 **锁页内存 (Pinned Memory)** 和 **CUDA 多流 (Streams)** 实现数据传输与计算的完全重叠 (Overlap)。
-
 
 ### Step 1: 锁页内存与异步流机制
 
@@ -29,14 +27,11 @@
 > 2. 使用 `tensor.to('cuda', non_blocking=True)` 发起异步传输。
 > 3. 创建一个新的 `torch.cuda.Stream`，在这个分支流上专门负责传输或计算，让它们在时间轴上并行！
 
-
 ### Step 2: 锁页内存 与异步流隐藏延迟
 默认的 CPU 到 GPU 数据拷贝会导致 GPU 计算引擎闲置。通过将张量放置在 `Pinned Memory` (锁页内存) 中，系统保证这块内存不会被换出，从而允许 GPU 利用 DMA 引擎在后台异步“偷取”数据。如果把异步读取与计算操作放在不同的 `CUDA Stream` 中，就能彻底隐藏 IO 耗时。
 
-
 ### Step 3: 多流计算代码框架
 使用 `tensor.pin_memory()` 锁定内存，利用 `tensor.to(device, non_blocking=True)` 发起异步传输。通过 `with torch.cuda.stream(stream1):` 开辟非默认执行流（Stream），将计算任务抛入。最后使用 `torch.cuda.synchronize()` 等待任务完成。
-
 
 ###  Step 4: 动手实战
 
@@ -106,6 +101,7 @@ def overlap_transfer_and_compute(cpu_tensors, compute_stream, transfer_stream, c
     torch.cuda.synchronize()
 
 ```
+
 
 ```python
 # 测试并对比纯串行与异步重叠的性能
@@ -179,9 +175,6 @@ test_overlap()
 
 ---
 
-::: details 💡 点击查看官方解析与参考代码
-
-
 ### 💡 核心实现原理解析
 
 在深度学习计算中，PCIe 带宽经常成为瓶颈。这段代码实现了一个非常经典的高性能计算模式：**双缓冲 (Double Buffering) 和 计算/通信重叠 (Computation/Communication Overlap)**。
@@ -227,10 +220,3 @@ def overlap_transfer_and_compute(cpu_tensors, compute_stream, transfer_stream, c
                 
     torch.cuda.synchronize()
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

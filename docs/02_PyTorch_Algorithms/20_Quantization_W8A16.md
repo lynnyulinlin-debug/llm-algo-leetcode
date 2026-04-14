@@ -1,15 +1,14 @@
-# 20 Quantization W8A16
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/20_Quantization_W8A16.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 20. 模型量化基础: INT8 绝对最大值量化与反量化 (Quantization)
+# 20. Quantization W8A16 | 模型量化基础: INT8 绝对最大值量化与反量化 (Quantization)
 
 **难度：** Medium | **标签：** `推理优化`, `量化`, `PTQ` | **目标人群：** 模型微调与工程部署
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/20_Quantization_W8A16.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 
 大模型动辄百亿参数，显存占用极大。为了让 7B 模型能跑在消费级显卡（如 RTX 4090 / 3090）甚至手机端，**模型量化 (Quantization)** 是不可或缺的技术。
@@ -19,8 +18,7 @@
 > **相关阅读**:
 > 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
 > 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
->  [`../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.md`](../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.md)
-
+>  [`../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.ipynb`](../03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.md)
 
 ### Step 1: 核心思想与概念
 
@@ -31,10 +29,8 @@
 > - **PTQ (Post-Training Quantization，训练后量化)**：模型已经训练好了。我们只需要拿一小批校准数据（Calibration Data）跑一遍，统计一下激活值的分布，算出缩放因子（Scale），直接对权重转换。本节我们实现的就是 PTQ。
 > - **QAT (Quantization-Aware Training，量化感知训练)**：在训练时，正向传播模拟量化的误差，反向传播用“直通估计器 (STE)”更新原始的高精度权重。成本极高，但精度损失最小。
 
-
 ### Step 2: 代码实现框架
 我们需要实现 `quantize` 和 `dequantize` 两个函数。在量化时，先计算 Scale，然后将张量除以 Scale，接着进行 `torch.round`，最后通过 `torch.clamp` 限制在 $[-128, 127]$ 区间并转为 `torch.int8` 数据类型。反量化则是简单的乘以 Scale。
-
 
 ###  Step 3: 数学公式：绝对最大值量化
 
@@ -54,7 +50,6 @@
 4. **反量化 (Dequantize)**：
    在真正做矩阵乘法前（如果是 W8A16 这种 Weight-only 量化），需要把 INT8 恢复成 FP16 参与计算：
    $X_{fp16} = \frac{X_{int8}}{S}$
-
 
 ###  Step 4: 动手实战
 
@@ -147,6 +142,7 @@ class W8A16Linear(nn.Module):
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_quantization():
@@ -213,9 +209,6 @@ test_quantization()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 权重量化（W8A16）是一种能够在不明显损失精度的前提下，将模型权重的显存占用减半的技术。在实现中，我们将 FP16 权重转换为 INT8，并在推理计算前进行反量化，或者在特定的自定义算子中直接计算。
 
 ```python
@@ -229,10 +222,3 @@ def quantize_to_int8(tensor):
 def dequantize_from_int8(quantized_tensor, scale, dtype=torch.float16):
     return (quantized_tensor.to(dtype) * scale)
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

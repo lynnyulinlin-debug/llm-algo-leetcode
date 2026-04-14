@@ -1,15 +1,14 @@
-# 15 FlashAttention Sim
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/15_FlashAttention_Sim.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 15. 深入理解 FlashAttention：分块计算与 Online Softmax
+# 15. FlashAttention Sim | 深入理解 FlashAttention：分块计算与 Online Softmax
 
 **难度：** Hard | **标签：** `FlashAttention`, `Memory Bound`, `PyTorch` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/15_FlashAttention_Sim.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在标准的自注意力 (Self-Attention) 机制中，时间复杂度和空间复杂度都是序列长度 $O(N^2)$。当序列变得极长（如 128k, 1M Token），庞大的 $N \times N$ 注意力分数矩阵 $(QK^T)$ 会直接导致显存溢出 (OOM)。
 
@@ -22,8 +21,7 @@ FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想
 > **相关阅读**:
 > 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
 > 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
->  [`../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.md`](../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.md)
-
+>  [`../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.ipynb`](../03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.md)
 
 ### Step 1: 核心理论与 Online Softmax
 
@@ -42,14 +40,11 @@ FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想
 > - 修正旧的指数和：$l_{new} = l_{old} \cdot e^{m_{old} - m_{new}} + l_{block} \cdot e^{m_{block} - m_{new}}$
 > - 修正旧的输出结果（乘积累加）：$O_{new} = O_{old} \cdot \frac{l_{old} \cdot e^{m_{old} - m_{new}}}{l_{new}} + \frac{e^{S_{block} - m_{new}} \cdot V_{block}}{l_{new}}$
 
-
 ### Step 2: Flash Attention 分块机制原理
 由于标准的 Attention 需要 $O(N^2)$ 的显存来存储巨大的 Attention Score 矩阵 $S = QK^T$，当上下文变长时必定 OOM。Flash Attention 巧妙地在序列维度上对 Q, K, V 进行分块（Tiling）。通过外层循环遍历 Q 块，内层循环遍历 K 和 V 块，我们可以在保持数学上完全等价的前提下，将显存消耗降到 $O(N)$。
 
-
 ### Step 3: 代码实现框架
 核心是三层嵌套的循环（或者是二维 Grid）。对于当前处理的一小块 $Q_{block}$，在内层遍历所有 $K_{block}$ 时，动态地更新局部最大值 $m$ 和局部指数和 $l$。这是在纯 PyTorch 中使用 `for` 循环来模拟底层 C++ 内存块调度的绝佳方式。
-
 
 ###  Step 4: 动手实战
 
@@ -133,6 +128,7 @@ def flash_attention_forward_sim(q, k, v, block_size=2):
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_flash_attention_sim():
@@ -192,7 +188,6 @@ test_flash_attention_sim()
 **🧠 思考题（进阶验证）**：
 在 V1 的算法中，我们在内层循环每次更新块时，都会执行 `v_block = v_block * scale1 + v_i * scale2`。这个标量乘法是跑在 CUDA Core 上的，速度很慢。
 如果我们要朝着 FlashAttention-2 的方向优化上面的纯 PyTorch 模拟代码，我们应该怎么在数学上修改这段 `Online Softmax`，使得 `v_block` 的缩放只在整个循环结束时发生一次？
-
 ---
 
 🛑 **STOP HERE** 🛑
@@ -202,9 +197,6 @@ test_flash_attention_sim()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 Flash Attention 是一种用于加速注意力的核心技术。其本质是通过硬件级别的分块计算（Tiling）和在片上存储的重算机制，大幅度降低了 HBM 到 SRAM 的访存瓶颈。
 
 ```python
@@ -221,10 +213,3 @@ def flash_attention_sim(Q, K, V, mask=None):
     output = torch.matmul(attn_weights, V)
     return output
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

@@ -1,4 +1,4 @@
-# 讨论题 07：CPU 与 GPU 异构调度 (CPU & GPU Heterogeneous Scheduling)
+# 07. CPU GPU Heterogeneous Scheduling | CPU 与 GPU 异构调度 (CPU & GPU Heterogeneous Scheduling)
 
 **难度：** Hard | **标签：** `系统架构`, `异构计算`, `Offload` | **目标人群：** 核心 Infra 与算子开发
 

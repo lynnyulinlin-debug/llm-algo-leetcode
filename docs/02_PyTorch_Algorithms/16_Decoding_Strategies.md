@@ -1,21 +1,19 @@
-# 16 Decoding Strategies
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/16_Decoding_Strategies.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 16. 大模型解码策略：Top-K, Top-p (Nucleus) 与 Temperature
+# 16. Decoding Strategies | 大模型解码策略：Top-K, Top-p (Nucleus) 与 Temperature
 
 **难度：** Medium | **标签：** `推理算法`, `Decoding` | **目标人群：** 模型微调与工程部署
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/16_Decoding_Strategies.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 有了 `Logits` 之后，我们如何决定大模型生成的下一个词是什么？
 这就是解码策略（Decoding Strategy）解决的问题。如果只取概率最大的词（Greedy Search），模型生成的文本会非常干瘪且容易重复。为了让生成的文本既有逻辑性又有创造性，我们需要引入**温度采样（Temperature）**、**Top-K** 和 **Top-p（核采样）**。
 
 在面试大模型算法岗（无论是微调还是部署）时，这三个算法的张量实现是必考的！
-
 
 ### Step 1: 核心思想与痛点
 
@@ -29,14 +27,12 @@
 > 2. **Top-K 截断**：只保留得分最高的 $K$ 个词的概率，把排名第 $K+1$ 之后的词全部强制剔除（概率置为 $-\infty$）。
 > 3. **Top-p (Nucleus) 核采样**：动态截断。按概率从大到小排序，当累加的概率刚好超过阈值 $p$ 时，截断后面的词。它可以根据分布的平缓程度，自动决定截断的数量。
 
-
 ### Step 2: 代码实现框架
 在自回归解码中，我们获取最后一个 Token 的概率分布后：
 - **Temperature**: 将 Logits 除以 $T$。
 - **Top-K**: 用 `torch.topk` 找出前 K 个最大的概率，将其他的 Logits 置为 $-\infty$。
 - **Top-P (Nucleus)**: 对 Logits 降序排列并计算累积概率，将累积概率超过 $P$ 的位置对应的 Logits 屏蔽掉。
 最后使用 `torch.multinomial` 依概率进行采样。
-
 
 ###  Step 3: 核心机制：Softmax 截断与重整化
 
@@ -46,7 +42,6 @@
 2. 找出那些**累加和超过 0.85 的位置**（即 `[False, False, True, True, True]`）
 3. 把这些位置对应的原始 Logits 强制设为 `-inf`
 4. 对剩下的有效 Logits 重新执行一次 `Softmax` 进行概率归一化。
-
 
 ###  Step 4: 动手实战
 
@@ -152,6 +147,7 @@ def decode_next_token(logits: torch.Tensor, temperature=0.7, top_k=50, top_p=0.9
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_decoding():
@@ -216,9 +212,6 @@ test_decoding()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 自回归模型的解码策略（如Top-K和Top-P/Nucleus Sampling）直接影响文本生成的多样性和连贯性。此实现通过在 logits 上进行排序或累积概率筛选，过滤掉低概率词汇，然后重新归一化以便进行多项式采样。
 
 ```python
@@ -234,10 +227,3 @@ def top_p_filtering(logits, top_p=0.9, filter_value=-float('Inf')):
     logits[indices_to_remove] = filter_value
     return logits
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

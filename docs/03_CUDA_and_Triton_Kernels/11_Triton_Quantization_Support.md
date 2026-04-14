@@ -1,15 +1,14 @@
-# 11 Triton Quantization Support
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 11. Triton 量化算子：W8A16 权重量化融合矩阵乘法 (Quantization GEMM)
+# 11. Triton Quantization Support | Triton 量化算子：W8A16 权重量化融合矩阵乘法 (Quantization GEMM)
 
 **难度：** Hard | **标签：** `Triton`, `Quantization`, `GPTQ` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/11_Triton_Quantization_Support.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在模型部署中，**Weight-Only 量化** (例如 W8A16 或 W4A16) 是最普遍的显存优化手段。由于激活值 (Activation) 依然保持 FP16，所以传统的 PyTorch 需要在计算前显式地把权重反量化回 FP16，这不仅慢，还抵消了显存带来的带宽优势。
 
@@ -19,8 +18,7 @@
 
 > **相关阅读**:  
 > 如果你对量化的数学公式推导和纯 PyTorch 实现还不熟悉，建议先复习 PyTorch 篇：
-> [`../02_PyTorch_Algorithms/20_Quantization_W8A16.md`](../02_PyTorch_Algorithms/20_Quantization_W8A16.md)
-
+> [`../02_PyTorch_Algorithms/20_Quantization_W8A16.ipynb`](../02_PyTorch_Algorithms/20_Quantization_W8A16.md)
 ### Step 1: 融合反量化矩阵乘法的核心思想
 
 > **计算公式：**
@@ -31,7 +29,6 @@
 > **为什么要融合？**
 > - **传统方式**：先把整个 $W_{int8}$ 反量化为 $W_{fp16}$ (需要额外的 HBM 读写)，然后做标准的 FP16 GEMM。
 > - **融合方式**：在 Triton 内核的 SRAM 中，每次只加载一小块 $W_{int8}$，立即在寄存器里转成 FP16 并乘以 Scale，然后直接参与 `tl.dot` 累加。全程不产生额外的 HBM 访问。
-
 ### Step 2: SRAM 内反量化的执行流程
 
 在 Triton 分块 GEMM 的最内层循环中，每一轮迭代的操作如下：
@@ -42,7 +39,6 @@
 4. **矩阵乘累加**：执行标准的 `tl.dot(X, W_fp16)` 并累加到结果中。
 
 关键点：反量化操作发生在 SRAM 内部，不产生额外的 HBM 读写开销。
-
 ### Step 3: 内核函数签名与数据布局
 
 ```
@@ -55,7 +51,6 @@ w8a16_gemm_kernel(x_ptr, w_int8_ptr, scales_ptr, y_ptr, M, N, K, ...)
 - **y_ptr**: 输出矩阵，形状 `(M, N)`，数据类型 FP16
 
 Grid 划分为 2D：`(ceil(M/BLOCK_M), ceil(N/BLOCK_N))`，每个 Triton Program 负责输出矩阵中一个 `(BLOCK_M, BLOCK_N)` 大小的子块。
-
 ###  Step 4: 动手实战
 
 **要求**：请补全下方 `w8a16_gemm_kernel`。我们需要将 INT8 的权重即时转为 FP16 并完成矩阵乘法。为了简化，我们使用按列量化 (Per-channel Quantization)。
@@ -148,6 +143,7 @@ def triton_w8a16_gemm(x: torch.Tensor, w_int8: torch.Tensor, scales: torch.Tenso
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_w8a16_gemm():
@@ -225,9 +221,6 @@ test_w8a16_gemm()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 💡 参考解答：Triton 量化算子 W8A16 融合 GEMM
 
 在这个量化算子的实现中，最核心的操作是**即时反量化 (On-the-fly Dequantization)**。它的优势在于将昂贵的 HBM 显存读写转换为了极速的 SRAM/寄存器内计算：
@@ -311,10 +304,3 @@ def triton_w8a16_gemm(x: torch.Tensor, w_int8: torch.Tensor, scales: torch.Tenso
     )
     return y
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

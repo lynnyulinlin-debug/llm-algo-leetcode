@@ -1,18 +1,16 @@
-# 10 LoRA Tutorial
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/10_LoRA_Tutorial.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 10. 参数高效微调: 深入剖析 LoRA (PEFT)
+# 10. LoRA Tutorial | 参数高效微调: 深入剖析 LoRA (PEFT)
 
 **难度：** Medium | **标签：** `微调`, `PEFT`, `PyTorch` | **目标人群：** 模型微调与工程部署
 
-本节我们将解析大语言模型领域最具影响力的微调算法：**LoRA (Low-Rank Adaptation)**。我们将实现一个 `LoRALinear` 层，替换标准的 `nn.Linear`，体验矩阵秩分解是如何极大地节省显存开销的。
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/10_LoRA_Tutorial.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
+
+本节我们将解析大语言模型领域最具影响力的微调算法：**LoRA (Low-Rank Adaptation)**。我们将实现一个 `LoRALinear` 层，替换标准的 `nn.Linear`，体验矩阵秩分解是如何极大地节省显存开销的。
 
 ### Step 1: 核心思想与痛点
 
@@ -21,10 +19,8 @@
 > **LoRA 的本质：**
 > 冻结原始的预训练模型权重，并在每个 Dense 层旁边注入可训练的“旁路”降秩矩阵（A 和 B）。微调时只更新这非常少量的参数。最终推理时，可以将旁路权重无损“合并（Merge）”回主权重中。
 
-
 ### Step 2: LoRA 代码框架
 在 PyTorch 实现中，除了保留原始冻结的线性层权重外，我们需要并排初始化两个很小的可训练矩阵 A 和 B。A 通常用 Kaiming 均匀分布或高斯分布初始化，而 B 严格初始化为零，以保证训练开始时 $W = W_0 + B A \approx W_0$。
-
 
 ###  Step 3: 核心公式与张量维度
 
@@ -40,7 +36,6 @@ $$ h = W_0 x + \Delta W x = W_0 x + \frac{\alpha}{r} B A x $$
 **推理时合并权重 (Merge Weights)：**
 $$ W_{\text{merged}} = W_0 + \frac{\alpha}{r} B A $$
 这样在部署时，计算图里没有 A 和 B，完全没有额外的推理耗时（No Inference Latency）。
-
 
 ###  Step 4: 动手实战
 
@@ -108,6 +103,7 @@ class LoRALinear(nn.Module):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_lora():
@@ -155,9 +151,6 @@ test_lora()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 低秩自适应（LoRA）是一种参数高效的微调技术，核心在于通过低秩矩阵分解来更新权重。代码中通过创建并行的降维和升维线性层，并在前向传播时按缩放因子合并结果，大幅降低了可训练参数量。
 
 ```python
@@ -188,10 +181,3 @@ class LoRALinear(nn.Module):
             result += lora_out * self.scaling
         return result
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

@@ -1,4 +1,4 @@
-# 讨论题 08：编程模型演进 (Programming Models: CUDA & Triton)
+# 08. Programming Models CUDA Triton | 编程模型演进 (Programming Models: CUDA & Triton)
 
 **难度：** Hard | **标签：** `算子开发`, `编程模型`, `CUDA`, `Triton` | **目标人群：** 核心 Infra 与算子开发
 

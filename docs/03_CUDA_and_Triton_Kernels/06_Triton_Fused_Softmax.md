@@ -1,20 +1,18 @@
-# 06 Triton Fused Softmax
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/06_Triton_Fused_Softmax.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 06. Triton 进阶：跨线程归约与数值稳定 (Safe Softmax)
+# 06. Triton Fused Softmax | Triton 进阶：跨线程归约与数值稳定 (Safe Softmax)
 
 **难度：** Hard | **标签：** `Triton`, `Reduction`, `Attention` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/06_Triton_Fused_Softmax.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在纯 Python 模拟 FlashAttention 时，我们探讨过 Softmax。标准的 Softmax 是 Memory Bound 的痛点，因为它需要读取整个行三次：寻找最大值、计算指数和、计算除法。
 通过 Triton 的 SRAM，我们可以将**一整行 (Row)** 加载到片上缓存，在 SRAM 内部完成 `max`, `exp`, `sum` 以及除法运算，最终只写回显存一次！
 本节我们将实现一个高效率、数值稳定的 Fused Softmax 算子。
-
 
 ### Step 1: Softmax 数值稳定性与 Triton 归约
 
@@ -30,14 +28,11 @@
 > - 将该行全部 Load 进 SRAM（若行极长，需要切块循环归约，为简化教学本节假设 N 小于 BLOCK_SIZE 使得一行能完全载入 SRAM）。
 > - 使用 `tl.\max(x, axis=0)` 和 `tl.sum(x, axis=0)` 在 SRAM 内进行高效归约 (Reduction)。
 
-
 ### Step 2: 跨线程安全 Softmax 归约算法
 朴素的 Softmax 公式是 $e^{x_i} / \sum e^{x_j}$，但这很容易导致指数爆炸（例如 $e^{100}$ 会变成 NaN）。安全版本（Safe Softmax）是先求出这一行的最大值 $M$，然后计算 $e^{x_i - M}$。由于 Triton 只能在块内做 `tl.max` 和 `tl.sum`，我们需要巧妙地应用局部跨线程归约来处理这一数学变换。
 
-
 ### Step 3: 代码实现框架
 内部分配指针时，我们需要指向二维张量的特定一行。接着使用 `x_max = tl.\max(x, axis=0)` 提取行最大值。将其从原数据中减去：`num = tl.exp(x - x_max)`，再求和得到 `denom = tl.sum(num, axis=0)`，最后相除即为最终分布。
-
 
 ###  Step 4: 动手实战
 
@@ -121,6 +116,7 @@ def triton_softmax(x: torch.Tensor):
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_fused_softmax():
@@ -170,9 +166,6 @@ test_fused_softmax()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### Fused Softmax 参考实现解析
 
 1. **并行策略**: 分配每个 Triton Block 处理矩阵的一行，这意味着 `row_max`, `sum` 都只需要沿 `axis=0` 执行局部归约即可。
@@ -244,10 +237,3 @@ def triton_softmax(x: torch.Tensor) -> torch.Tensor:
     return y
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

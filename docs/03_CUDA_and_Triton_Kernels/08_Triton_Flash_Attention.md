@@ -1,15 +1,14 @@
-# 08 Triton Flash Attention
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 08. Triton Flash Attention：编写真正的 Flash Attention 前向算子
+# 08. Triton Flash Attention | Triton Flash Attention：编写真正的 Flash Attention 前向算子
 
 **难度：** Hard | **标签：** `Triton`, `FlashAttention`, `Memory Bound` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/08_Triton_Flash_Attention.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在 `02_PyTorch_Algorithms/13_FlashAttention_Sim` 和 `03_Triton_Kernels/06_Triton_Fused_Softmax` 中，我们已经完全掌握了 Flash Attention 的两大数学核心：**分块计算 (Tiling)** 和 **在线安全 Softmax 归约 (Online Safe Softmax)**。
 本节我们将把这两者结合起来，利用 Triton 在 SRAM 中的极速读写，编写一个真正的、可运行在 GPU 上的 Flash Attention 前向计算内核。这是大模型推理与训练提速的基石算子。
@@ -18,8 +17,7 @@
 > **相关阅读**:  
 > 本节使用 Triton 实现了底层的显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
-> [`../02_PyTorch_Algorithms/13_FlashAttention_Sim.md`](../02_PyTorch_Algorithms/13_FlashAttention_Sim.md)
-
+> [`../02_PyTorch_Algorithms/13_FlashAttention_Sim.ipynb`](../02_PyTorch_Algorithms/13_FlashAttention_Sim.md)
 ### Step 1: Flash Attention 内核的执行逻辑
 
 > **任务分配 (Grid)：**
@@ -37,14 +35,11 @@
 >    - 修正过去的累加器 `acc`，并累加新的 $P \times V$。
 > 4. 循环结束后，将最终归一化的结果 `acc / l_i` 写回 HBM。
 
-
 ### Step 2: Online Softmax 与 Tiling 深度剖析
 为了能够在 SRAM 中处理长序列点积，Flash Attention 发明了 Tiling 与 Online Softmax。在内层循环迭代块 $j$ 时，局部最大值 $m_{new} = \max(m_{old}, m_j)$ 会发生变化。我们需要乘上修正系数 $e^{m_{old} - m_{new}}$ 来弥补之前循环计算结果造成的偏差，使其在数学上严格等价于完整的全局 Softmax。
 
-
 ### Step 3: 内核基本框架
 建立 1D Grid 架构，每个程序固定加载一个 $Q$ 块和累加器。遍历 $K$ 和 $V$ 的序列长度：加载 $K_j$ 计算局部点积，提取局部最大值，修正历史累加的 $L$ 和 $Acc$ 变量，累加当前的 $P_j \times V_j$，然后继续读取下一个块。最后归一化并写入 HBM。
-
 
 ###  Step 4: 动手实战
 
@@ -162,6 +157,7 @@ def triton_flash_attention(q, k, v, sm_scale):
 
 ```
 
+
 ```python
 # 测试你的实现
 import math
@@ -244,9 +240,6 @@ test_triton_flash_attention()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 💡 参考解答：Triton Flash Attention 前向算子
 
 在这个实现中，我们完成了核心的 Flash Attention 前向计算内核。注意以下几个关键点：
@@ -339,10 +332,3 @@ def triton_flash_attention(q, k, v, sm_scale):
     )
     return out
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

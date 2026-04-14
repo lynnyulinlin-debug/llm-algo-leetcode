@@ -1,19 +1,17 @@
-# 04 Triton GEMM Tutorial
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/04_Triton_GEMM_Tutorial.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 04. GPU 编程的皇冠明珠：矩阵乘法 (GEMM) 与分块搜索空间 (Autotune)
+# 04. Triton GEMM Tutorial | GPU 编程的皇冠明珠：矩阵乘法 (GEMM) 与分块搜索空间 (Autotune)
 
 **难度：** Hard | **标签：** `Triton`, `GEMM`, `Compute Bound`, `Autotuning` | **目标人群：** 核心 Infra 与算子开发
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/04_Triton_GEMM_Tutorial.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 如果说逐元素操作（如 SwiGLU、RMSNorm）是为了突破**显存墙 (Memory Bound)**，那么矩阵乘法 (GEMM: General Matrix Multiply) 则是为了榨干 GPU 恐怖的**算力墙 (Compute Bound)**。
 本节我们将利用二维的 Thread Block，实现一个 $C = A \times B$ 的矩阵乘法 Kernel。并且，我们将引入 `@triton.autotune`，探索不同的 `BLOCK_M, BLOCK_N, BLOCK_K` 以及 Pipeline 级数 (`num_stages`) 对最终 **TFLOPs (每秒万亿次浮点运算)** 的巨大影响！
-
 
 ### Step 1: 核心思想与痛点
 
@@ -30,14 +28,11 @@
 > - 块太小：无法喂饱庞大的 Tensor Core 计算阵列。
 > 因此，必须使用 `@triton.autotune` 穷举搜索最佳配置！
 
-
 ### Step 2: 2D 分块与 SRAM 调度原理
 相比于逐元素的加法，GEMM 是极度 Compute Bound 的。为了最大化利用 GPU Tensor Core，我们不仅要在网格（Grid）上按二维划分为 M_BLOCK 和 N_BLOCK，还要在内核内部循环遍历 K 维度。每次加载一小块 (M_BLOCK, K_BLOCK) 和 (K_BLOCK, N_BLOCK) 的矩阵到 SRAM，执行点积累加到相同的累加寄存器中。这保证了数据复用率最高。
 
-
 ### Step 3: 自动调优代码框架
 Triton 的核心是装饰器 `@triton.autotune`。你可以在上方定义一组配置（如 `triton.Config`），列出不同的 `BLOCK_M`, `BLOCK_N`, `num_warps`, `num_stages` 的组合。Triton 编译器会在内核首次执行时，将所有配置暴力运行一遍，自动筛选出吞吐量最高的那组参数。
-
 
 ###  Step 4: 动手实战
 
@@ -154,6 +149,7 @@ def triton_gemm(a: torch.Tensor, b: torch.Tensor):
 
 ```
 
+
 ```python
 # 运行测试并进行 Benchmark 性能对比
 def test_fused_gemm():
@@ -213,9 +209,6 @@ test_fused_gemm()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 📝 GEMM 参考实现解析
 
 1. **掩码控制**: 在加载内存块 `a` 和 `b` 时，必须计算剩余的 `K` 长度防止越界。超出边界的地方补 `other=0.0`，这样在做矩阵乘时不会改变累加器的值。
@@ -295,10 +288,3 @@ def _gemm_kernel(
     tl.store(c_ptrs, c, mask=c_mask)
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！
