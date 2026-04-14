@@ -15,8 +15,7 @@
 > **相关阅读**:
 > 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
 > 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
->  [`../03_CUDA_and_Triton_Kernels/03_Triton_Fused_RMSNorm.ipynb`](../03_CUDA_and_Triton_Kernels/03_Triton_Fused_RMSNorm.md)
-
+>  [03_Triton_Fused_RMSNorm](../03_CUDA_and_Triton_Kernels/03_Triton_Fused_RMSNorm.md)
 ### Step 1: 核心思想与痛点
 
 > **为什么抛弃了 LayerNorm？**
@@ -35,8 +34,20 @@
 2. **归一化并缩放 (Scale)：**
    $$ y = \frac{x}{\text{RMS}(x)} \odot \gamma $$
    其中 $\gamma \in \mathbb{R}^d$ 是可学习的权重参数（Weight）。**RMSNorm 没有偏置项 (Bias)**。
-### Step 3: 代码实现框架
-在 PyTorch 中，我们需要通过 `torch.mean` 计算方差，加上一个极小的 `eps` 防止除以零，最后乘以可学习的权重参数 `weight`。注意在计算方差时，应当保持数据类型为 `float32` 以防止 FP16 下的数值溢出。
+
+### Step 3: 代码实现与混合精度 (AMP) 陷阱
+
+在 PyTorch 中，我们需要通过 `torch.mean` 计算均方，加上一个极小的 `eps` 防止除以零，最后乘以可学习的参数 `weight`。
+
+在代码实现时，有一个非常关键的工程细节需要处理：**数值溢出 (Numerical Overflow)**。
+
+> **工程经验：为什么要强制转换精度？**
+> 现代大模型训练与推理几乎都会使用混合精度 (AMP) 或半精度格式 (`FP16`) 以节省显存。但我们需要注意，`FP16` 的最大安全数值仅为 `65504`。
+> 
+> 在计算 RMSNorm 时，第一步是求输入张量的平方 ($x^2$)。如果输入特征中某个值大于 $256$（由于 $256^2 = 65536 > 65504$），该位置计算后就会溢出变为 `inf`（无穷大），进而导致损失函数出现 `NaN`，引发训练崩溃。
+> 
+> **标准处理方案 (Upcasting)：** 
+> 无论模型输入是什么精度格式，在执行平方和均值操作前，通常需要显式地将其转换为 `float32` 计算。待归一化计算完毕后，再将结果转换回原有精度。这是深度学习框架中处理该算子的标准做法。
 ### Step 4: 动手实战
 
 **要求**：请补全下方 `RMSNorm` 的 `forward` 方法。
@@ -140,11 +151,9 @@ test_rmsnorm()
    - **张量广播 (Broadcasting)**：计算均方值时使用 `.mean(dim=-1, keepdim=True)`，不仅是对最后一个特征维度求均值，更是为了保留维度数量（形状变为 `(batch_size, seq_len, 1)`），以便在最后一步能与 `x_fp32` 完美广播相乘。
    - **指令优化 (Fast Math)**：强烈推荐使用 `torch.rsqrt(x)`（相当于 $1/\sqrt{x}$）而不是 `1.0 / torch.sqrt(x)`。前者在底层会直接映射为专门的 CUDA 快速倒数平方根指令，速度更快且数值更稳定。最后返回 `float32` 结果，在此处不要急着转换精度。
 3. **TODO 3 (类型恢复与权重缩放)：**
-    **正确顺序**：必须先将 float32 的 norm 结果转回原生精度（如 `float16`），再乘以 `weight`。即：`x_norm.to(x.dtype) * self.weight`。
-    **防坑指南 (Type Promotion)**：在真实大模型中，`weight` 会被转化为与输入相同的低精度格式。如果写成 `(x_norm_fp32 * weight_fp16).to(x.dtype)`，PyTorch 会在底层将 `weight` 隐式提升为 FP32 做乘法，带来额外的转换开销。
-    **进阶思考：为什么最后的乘法敢在低精度做，不怕溢出吗？**
+    必须确保最终输出的精度与输入一致。在经过 FP32 的归一化计算后，将其与 `weight` 相乘，最后统一通过 `.to(x.dtype)` 转换回原生精度（如 `float16`）。
+    **进阶思考：为什么最后的乘法敢在低精度做（真实场景下 weight 也是低精度），不怕溢出吗？**
     因为 `_norm(x)` 计算完毕后，特征已被归一化，其绝大多数数值被强行压缩到了 `[-3, 3]` 的极小区间内。而 `weight`（初始为 1）通常在 `[0.5, 2.0]` 附近波动。两者的乘积一般在 `[-6, 6]` 之间，距离 FP16 的溢出红线 `65504` 差了一万倍，因此发生溢出的概率极低。
-
 
 ```python
 class RMSNormSolution(nn.Module):
@@ -162,7 +171,5 @@ class RMSNormSolution(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO 3: 类型回退并应用权重缩放
-        # 正确做法：先将 norm 结果转回 x.dtype，再与 weight 相乘
-        return self._norm(x).to(x.dtype) * self.weight
-
+        return (self.weight * self._norm(x)).to(x.dtype)
 ```

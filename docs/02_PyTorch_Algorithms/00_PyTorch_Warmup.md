@@ -15,10 +15,15 @@
 
 ### Part 1: 张量维度变换与 `einops`
 
->在大模型代码中，最常报的错就是 `RuntimeError: size mismatch`。
->熟练掌握 `view`, `reshape`, `transpose`, `permute` 是算法工程师的基本功。
->更进一步，工业界广泛使用 **`einops`** 库来让维度变换语义化、可读化。
-
+> **为什么我们需要 `einops`？**
+> 在大模型开发中，张量形状不匹配（`RuntimeError: size mismatch`）是最高频的调试痛点之一。熟练掌握原生的 `view`, `reshape`, `transpose`, `permute` 是算法工程师的基础功底。
+> 
+> 然而，在实际的工业级代码中（尤其是 Transformer 的多头注意力机制等高维张量操作），原生方法往往缺乏可读性且极易出错。
+> 举个典型的例子：将形状为 `[batch, heads, seq_len, head_dim]` 的多头张量合并为 `[batch, seq_len, hidden_dim]`：
+> - **原生实现**：`x.permute(0, 2, 1, 3).reshape(batch, seq_len, -1)` —— 开发者必须在脑海中硬记数字索引 `(0,2,1,3)` 的物理含义，代码维护成本极高。
+> - **`einops` 实现**：`rearrange(x, 'b h s d -> b s (h d)')` —— 维度变换的语义直接写在字符串中，代码即文档（Self-documenting）。
+>
+> 这正是为什么现代深度学习框架和开源模型广泛拥抱 **`einops`** 库，它能让复杂的张量操作变得语义清晰、安全可防错。
 
 ```python
 import torch
@@ -93,6 +98,8 @@ def embedding_warmup(input_ids: torch.Tensor, vocab_size: int, hidden_dim: int):
 
 
 ```python
+import torch.nn.functional as F
+
 class LinearReLUFunction(torch.autograd.Function):
     """
     实现一个包含 Linear + ReLU 的算子，并推导其反向传播的梯度。
@@ -205,6 +212,7 @@ test_warmup()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
+## 官方解析与参考代码
 本节通过三个实战任务带你快速复习 PyTorch 核心操作。在张量维度变换中，原生的 permute+reshape 和 einops.rearrange 都能完成通道转换与展平；在 Embedding 层模拟中，深入体会了 nn.Embedding 本质就是权重的查表；在反向传播推导中，我们利用链式法则计算了经过 ReLU 和 Linear 层的梯度，这是理解大模型底层 Autograd 机制的关键。
 
 ```python
