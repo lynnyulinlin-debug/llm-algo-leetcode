@@ -1,19 +1,17 @@
-# 09 SFT Training Loop
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/09_SFT_Training_Loop.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 09. 监督微调训练框架: 数据构造与 Loss Masking (SFT Training Loop)
+# 09. SFT Training Loop | 监督微调训练框架: 数据构造与 Loss Masking (SFT Training Loop)
 
 **难度：** Medium | **标签：** `训练框架`, `SFT`, `PyTorch` | **目标人群：** 模型微调与工程部署
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/09_SFT_Training_Loop.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 在面试大模型算法工程师时，面试官极大概率会问：“在做 SFT（监督微调）时，你是怎么构造 `input_ids` 和 `labels` 的？”、“为什么要 `shift logits`？”
 本节我们将实现 SFT 训练中最容易写错的代码：**Prompt Masking**（忽略提问部分的 Loss）和 **交叉熵对齐**。
-
 
 ### Step 1: 核心思想与痛点
 
@@ -24,16 +22,13 @@
 > **如何解决？（Loss Masking）**
 > 在 PyTorch 的 `CrossEntropyLoss` 中，有一个神仙参数叫 `ignore_index`，默认值是 `-100`。我们只要把 `labels` 中属于 `Prompt` 和 `Padding` 的部分全部替换成 `-100`，这部分就不会产生任何梯度！
 
-
 ### Step 2: Causal Masking 与 Shift Logits
 
 在自回归语言模型中，预测第 $t+1$ 个词完全依赖于前 $t$ 个词。因此，在计算 CrossEntropyLoss 时，模型的预测输出序列（Logits）需要向左偏移（Shift）一位，与真实的标签序列（Labels）对齐。此外，对于 SFT 提示词部分，通常需要设置 `ignore_index = -100` 以避免它们产生梯度传播。
 
-
 ### Step 3: 代码实现框架
 
 切片操作是关键：`logits = logits[..., :-1, :].contiguous()`，`labels = labels[..., 1:].contiguous()`。然后将展平后的 Logits 和 Labels 送入 `nn.CrossEntropyLoss(ignore_index=-100)`。
-
 ### Step 4: 核心机制：Shift Logits
 
 大模型是**自回归**（Auto-regressive）的。意思是：用前 $t$ 个 Token，预测第 $t+1$ 个 Token。
@@ -46,7 +41,6 @@
 为了计算 Loss，我们需要把 `logits` 的最后一个位置切掉（因为它预测的是序列外的东西），把 `labels` 的第一个位置切掉（因为它没有前置输入）。
 *   `shift_logits = logits[..., :-1, :]`
 *   `shift_labels = labels[..., 1:]`
-
 ### Step 5: 动手实战
 
 **要求**：请补全下方 `build_sft_data`（构造单条 SFT 数据）和 `compute_sft_loss`（计算损失）的 `TODO` 逻辑。
@@ -116,6 +110,7 @@ def compute_sft_loss(logits: torch.Tensor, labels: torch.Tensor):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_sft_pipeline():
@@ -182,9 +177,6 @@ test_sft_pipeline()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 监督微调（SFT）的训练循环与普通模型的训练非常类似，重点在于只对特定的输出Token计算损失。通常需要将标签中对应输入部分的掩盖为特殊值（如-100），以此确保模型只在生成正确回复时获得梯度。
 
 ```python
@@ -205,10 +197,3 @@ def compute_sft_loss(logits, labels, ignore_index=-100):
     loss = loss_fct(shift_logits, shift_labels)
     return loss
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

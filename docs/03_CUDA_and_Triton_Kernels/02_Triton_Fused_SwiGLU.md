@@ -1,15 +1,14 @@
-# 02 Triton Fused SwiGLU
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 02. Triton 算子开发：融合门控激活函数 (Fused SwiGLU)
+# 02. Triton Fused SwiGLU | Triton 算子开发：融合门控激活函数 (Fused SwiGLU)
 
 **难度：** Medium | **标签：** `Triton`, `Memory Bound`, `Operator Fusion` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 SwiGLU 激活函数由两个线性层输出的非线性组合构成：$SwiGLU(x, W, V) = Swish(xW) \otimes xV$。
 由于大模型的非线性层通常是纯粹的 Element-wise 操作（没有归约 Reduce），这使得它们极度 **Memory Bound (访存受限)**。在原生 PyTorch 中，多次访存会严重拖慢整体运算速度。
@@ -18,8 +17,7 @@ SwiGLU 激活函数由两个线性层输出的非线性组合构成：$SwiGLU(x,
 > **相关阅读**:
 > 本节使用 Triton 实现了底层的极致显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/02_SwiGLU_Activation.md`](../02_PyTorch_Algorithms/02_SwiGLU_Activation.md)
-
+>  [`../02_PyTorch_Algorithms/02_SwiGLU_Activation.ipynb`](../02_PyTorch_Algorithms/02_SwiGLU_Activation.md)
 
 ### Step 1: 算子融合的本质
 
@@ -36,14 +34,11 @@ SwiGLU 激活函数由两个线性层输出的非线性组合构成：$SwiGLU(x,
 > 3. 直接将最终结果写回显存。
 > **结果：只需要一次 HBM Read 和一次 HBM Write，速度翻倍！**
 
-
 ### Step 2: 算子融合如何打破 Memory Bound
 如果使用纯 PyTorch：执行 `F.silu(x) * y` 需要读两次 HBM，写两次 HBM。但在 GPU 架构中，HBM 带宽是非常昂贵的。通过 Triton 算子融合，我们将 `x` 和 `y` 各自从 HBM 读入 SRAM 一次，在寄存器极速完成激活和乘法，直接把结果写回 HBM，从而省去了所有中间结果的存取开销。
 
-
 ### Step 3: 算子融合代码框架
 我们设计一个接收三个指针（输入 X 的指针、输入 Y 的指针、输出指针）的内核。在每个 Program 内，并行地读取 `BLOCK` 长度的 `x` 块和 `y` 块，在 Triton 内执行 `x * tl.sigmoid(x) * y`，然后覆盖写入输出地址。
-
 
 ###  Step 4: 动手实战
 
@@ -130,6 +125,7 @@ def triton_fused_swiglu(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
 ```
 
+
 ```python
 # 测试你的实现 (请在拥有 NVIDIA GPU 的环境下运行)
 import torch.nn.functional as F
@@ -193,9 +189,6 @@ test_fused_swiglu()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 📝 SwiGLU 参考实现解析
 
 1. **加载数据**: 使用 `tl.load` 根据计算好的 `offsets` 加载 `x` 和 `y`。同时传入 `mask` 防止内存越界。
@@ -256,10 +249,3 @@ def triton_fused_swiglu(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

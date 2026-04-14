@@ -1,18 +1,16 @@
-# 04 Attention MHA GQA
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/04_Attention_MHA_GQA.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 04. 注意力机制与键值缓存 (MHA / GQA / MQA)
+# 04. Attention MHA GQA | 注意力机制与键值缓存 (MHA / GQA / MQA)
 
 **难度：** Medium | **标签：** `基础架构`, `PyTorch`, `推理优化` | **目标人群：** 模型微调与工程部署
 
-欢迎来到 LLM-LeetCode！本节我们将深入解析大语言模型的核心组件：**注意力机制**，并实现支持 KV Cache 和 GQA (Grouped-Query Attention) 的代码。
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/04_Attention_MHA_GQA.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
+
+欢迎来到 LLM-LeetCode！本节我们将深入解析大语言模型的核心组件：**注意力机制**，并实现支持 KV Cache 和 GQA (Grouped-Query Attention) 的代码。
 
 ### Step 1: 核心思想与痛点
 
@@ -23,7 +21,6 @@
 
 > **什么是 KV Cache？**
 > 在自回归生成中，每次生成第 $N$ 个 Token，我们都需要前面 $N-1$ 个 Token 的信息。为了避免重复计算前面的特征，我们把前 $N-1$ 步算好的 Key 和 Value 张量**缓存（Cache）**起来，在当前步直接拼接参与计算。
-
 
 ###  Step 2: 核心公式与张量维度
 
@@ -38,13 +35,11 @@ $$ \text{Attention}(Q, K, V) = \text{Softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 4. 乘以 Value：`Scores @ V` -> `[B, H, S, S] @ [B, H, S, D]` -> `[B, H, S, D]`
 5. 最后合并多头：转置回 `[B, S, H, D]` 并 `view` 成 `[B, S, H * D]`。
 
-
 ###  Step 3: 工业界源码映射
 
 在真实的工业界代码中，这段逻辑在哪里？
 * **HuggingFace LLaMA**: `transformers/models/llama/modeling_llama.py` 中的 `LlamaAttention` 类。
 * **vLLM (推理框架)**: 核心关注它的 PagedAttention 实现，用来解决这里 KV Cache 的显存碎片化问题。
-
 
 ###  Step 4: 动手实战
 
@@ -147,6 +142,7 @@ class GroupedQueryAttention(nn.Module):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_mha_mqa_gqa():
@@ -195,9 +191,6 @@ test_mha_mqa_gqa()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 Attention 算子的核心是张量维度的追踪与变换。首先要用 view + transpose 将 QKV 转为多头形式 [batch_size, num_heads, seq_len, head_dim]。如果是自回归推理，将历史的 KV cache 与当前的 xk, xv 在 seq_len 维度进行拼接。接着计算 Attention Scores 时，只需用 xq @ xk.transpose(2, 3) 进行最后两维的矩阵乘法，得到注意力权重后再去乘 xv。对于 GQA 支持，借助外部传入的重复函数 repeat_kv，先将少量 KV 头扩充到 Query 头的数量再进行运算。
 
 ```python
@@ -259,10 +252,3 @@ class GroupedQueryAttention(nn.Module):
         
         return self.o_proj(output), new_kv_cache
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

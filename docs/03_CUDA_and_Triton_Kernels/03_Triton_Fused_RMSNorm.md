@@ -1,23 +1,21 @@
-# 03 Triton Fused RMSNorm
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/03_Triton_Fused_RMSNorm.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 006. Triton 算子开发实战：Fused RMSNorm
+# 03. Triton Fused RMSNorm | Triton 算子开发实战：Fused RMSNorm
 
 **难度：** Hard | **标签：** `推理优化`, `Triton`, `Memory Bound` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/03_Triton_Fused_RMSNorm.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 本节我们将步入大模型异构计算的深水区。我们将使用 OpenAI 的 **Triton** 语言，亲手编写一个在 GPU 上运行的 Fused RMSNorm 算子，并用 `do_bench` 证明它比 PyTorch 的原生实现更快！
 
 > **相关阅读**:
 > 本节使用 Triton 实现了底层的极致显存与计算优化。
 > 如果你对该算子的数学公式推导和纯 PyTorch 高层结构还不熟悉，建议先复习 PyTorch 篇：
->  [`../02_PyTorch_Algorithms/01_RMSNorm_Tutorial.md`](../02_PyTorch_Algorithms/01_RMSNorm_Tutorial.md)
-
+>  [`../02_PyTorch_Algorithms/01_RMSNorm_Tutorial.ipynb`](../02_PyTorch_Algorithms/01_RMSNorm_Tutorial.md)
 
 ### Step 1: 核心思想与痛点
 
@@ -28,10 +26,8 @@
 > **Triton Fused Kernel 的本质：**
 > “算子融合 (Operator Fusion)”。我们写一个底层的 GPU Kernel，让一个线程块（Block）把一行数据一次性读到超高速的片上内存（SRAM）中，在 SRAM 里算完均方根和缩放，最后只把结果写回一次显存。这极大地节约了访存时间。
 
-
 ### Step 2: 归约 代码框架
 内核沿着隐藏层维度（特征维度）分配指针。读取一整行的特征数据后，利用 `tl.sum(x * x, axis=0)` 快速求出平方和。接着除以维度长度得到方差，算出 `rsqrt`，再用它将原特征标准化。最后乘以来自 HBM 的可学习参数 `weight` 块，并写回结果。
-
 
 ###  Step 3: 核心公式与 Triton 编程模型
 
@@ -44,7 +40,6 @@ $$ y = \frac{x}{\sqrt{\frac{1}{d} \sum_{i=1}^d x_i^2 + \epsilon}} \odot \gamma $
 3. `tl.load(ptr, mask)`: 从显存（HBM）加载数据到片上内存（SRAM）。
 4. `tl.sum(x, axis=0)`: 在 SRAM 内进行高效的规约计算（Reduction）。
 5. `tl.store(ptr, value, mask)`: 将计算结果写回显存。
-
 
 ###  Step 4: 动手实战
 
@@ -136,6 +131,7 @@ def triton_rmsnorm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_triton_rmsnorm():
@@ -222,9 +218,6 @@ test_triton_rmsnorm()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 📝 RMSNorm 参考实现解析
 
 1. **并行策略**: 按行 (Row) 分配给不同的 Triton Block。`M` 行启动 `M` 个 Block。
@@ -299,10 +292,3 @@ def triton_rmsnorm(x, weight, eps=1e-5):
     return y
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

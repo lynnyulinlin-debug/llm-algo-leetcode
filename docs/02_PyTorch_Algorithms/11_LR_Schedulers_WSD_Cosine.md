@@ -1,15 +1,14 @@
-# 11 LR Schedulers WSD Cosine
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/11_LR_Schedulers_WSD_Cosine.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 11. 大模型训练调参难点：学习率调度器 (Warmup, Cosine, WSD)
+# 11. LR Schedulers WSD Cosine | 大模型训练调参难点：学习率调度器 (Warmup, Cosine, WSD)
 
 **难度：** Medium | **标签：** `Training`, `LR Scheduler`, `Llama-3` | **目标人群：** 模型微调与工程部署
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/11_LR_Schedulers_WSD_Cosine.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在传统的深度学习中，学习率通常是固定的或是按阶梯下降 (Step Decay)。但在大语言模型 (LLM) 的预训练和微调中，学习率的调度 (LR Schedule) 直接决定了模型会不会**崩溃 (Loss Spike)** 以及能否**收敛到平缓的最优解**。
 目前大模型训练有两套绝对主流的方案：
@@ -17,7 +16,6 @@
 2. **WSD (Warmup-Stable-Decay)**：LLaMA-3 和现代持续预训练 (Continued Pre-training) 最前沿的标配。
 
 本节我们将不依赖 HuggingFace 或 PyTorch 的现成实现，**纯手工通过数学分段函数写一个现代大模型标配的 WSD 调度器**，并将其可视化。
-
 
 ### Step 1: 核心机制剖析
 
@@ -32,17 +30,14 @@
 >   2. **Stable (稳定期)**：保持最大学习率不变，吃尽海量数据。如果想加数据，无限延长这个阶段即可。
 >   3. **Decay (高效退火)**：只在训练的最后 10% 或 5% 阶段，用一个陡峭的函数（如线性或余弦）快速降到 0，让模型迅速收敛收拢。
 
-
 ### Step 2: WSD 调度器的数学曲线
 Warmup-Stable-Decay (WSD) 是现代预训练（如 LLaMA-3）的标配。它的三个阶段是：
 1. **Warmup**: 学习率从 0 线性增长到最大值 $\eta_{max}$。
 2. **Stable**: 保持最大值 $\eta_{max}$ 训练绝大部分 Token（占整体的 70%~90%）。
 3. **Decay**: 在最后阶段（如退火阶段）使用余弦退火或线性衰减，将学习率迅速降至 $\eta_{min}$。这极大地帮助了模型在最后阶段收敛。
 
-
 ### Step 3: 代码实现框架
 继承自 `torch.optim.lr_scheduler.LRScheduler`，你需要实现核心的 `get_lr()` 方法。在其中利用 `self.last_epoch` 判断当前步数处于哪一个阶段，然后根据上述的数学公式计算并返回此时的学习率数组。
-
 
 ###  Step 4: 动手实战
 
@@ -134,6 +129,7 @@ class WSD_Scheduler(LRScheduler):
 
 ```
 
+
 ```python
 # 测试并可视化你的实现
 def test_and_plot_wsd():
@@ -205,9 +201,6 @@ test_and_plot_wsd()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 学习率调度器对于稳定训练至关重要。代码中展示了经典的余弦退火和带有Warmup的调度策略，通过逐步改变学习率，确保模型在初期能够快速收敛，在后期能精细搜索最优解。
 
 ```python
@@ -221,10 +214,3 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

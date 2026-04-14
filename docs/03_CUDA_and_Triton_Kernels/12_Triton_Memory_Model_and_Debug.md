@@ -1,20 +1,18 @@
-# 12 Triton Memory Model and Debug
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/12_Triton_Memory_Model_and_Debug.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 12. Triton 内存模型、指针计算与 Debug 避坑指南
+# 12. Triton Memory Model and Debug | Triton 内存模型、指针计算与 Debug 避坑指南
 
 **难度：** Hard | **标签：** `Triton`, `Memory Model`, `Debugging` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/12_Triton_Memory_Model_and_Debug.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在编写 Triton 算子时，最痛苦的不是构思数学公式，而是遇到 `Segmentation Fault` (显存越界)、脏数据 (Mask 没写对)、或者输出全为 `0` 且完全不知道如何打断点。
 与 PyTorch 这种高度抽象的框架不同，Triton 需要你直面 GPU 的物理内存布局（HBM vs SRAM）以及指针偏移计算 (`Stride`)。
 本节我们将深入剖析 Triton 的内存模型，并提供几个“故意写错”的典型算子，让你实战演练 `TRITON_INTERPRET=1` 和 `tl.device_print` 这种“救命”的 Debug 工具。
-
 
 ### Step 1: 内存模型与 Debug 核心概念
 
@@ -31,14 +29,11 @@
 > - `TRITON_INTERPRET=1 python xxx.py`：强制在 CPU 上逐行解释运行 Triton 代码，不会导致 GPU 挂起，且能报出 Python 级的越界错误。
 > - `tl.device_print("Debug Info", tensor)`：能在算子内部打印张量的值（必须配合少量数据，否则打印刷屏）。
 
-
 ### Step 2: 内存对齐与越界异常
 在 GPU 开发中，最令开发者痛苦的就是内存越界访问。Triton 封装了复杂的线程交互，但如果指针计算出现差错，程序会直接闪退。此外，由于内存事务（Memory Transactions）是按行对齐抓取的，确保张量维度是连续存放的也是性能优化的重中之重。
 
-
 ### Step 3: 调试工具与机制框架
 本节学习两个终极调试手段：1. 使用 `tl.device_print('变量名', value)` 强行打印某个线程里的张量内容（影响性能，仅供调试）；2. 配置环境变量 `TRITON_INTERPRET=1` 让脚本退回到 CPU 纯 Python 模式运行，从而可以用 pdb 断点追踪内核逻辑。
-
 
 ###  Step 4: 动手实战
 
@@ -131,6 +126,7 @@ def run_debug_simulations():
 
 ```
 
+
 ```python
 # 运行测试
 try:
@@ -158,9 +154,6 @@ except Exception as e:
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 💡 参考解答：Triton 内存模型避坑与 Debug
 
 在这个调试实战中，我们修复了最常见的几个内存错误：
@@ -240,10 +233,3 @@ def run_debug_simulations():
     assert out_1d[0].item() == 64.0 and out_1d[1].item() == 36.0, f"Bug 2 (Mask) 未修复: 读到了脏数据，求和不正确！得到了 {out_1d}"
     print("✅ Bug 2 修复成功：正确使用了 tl.load 的 other=0.0 处理边界。")
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

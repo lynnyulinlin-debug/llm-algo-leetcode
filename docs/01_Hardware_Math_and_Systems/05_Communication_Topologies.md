@@ -1,4 +1,4 @@
-# 讨论题 05：通信拓扑与分布式基石 (Communication & Distributed Topology)
+# 05. Communication Topologies | 通信拓扑与分布式基石 (Communication & Distributed Topology)
 
 **难度：** Hard | **标签：** `系统架构`, `分布式训练`, `通信机制` | **目标人群：** 核心 Infra 与算子开发
 

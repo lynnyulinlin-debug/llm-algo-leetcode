@@ -1,20 +1,18 @@
-# 07 MoE Load Balancing Loss
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/07_MoE_Load_Balancing_Loss.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 07. MoE 进阶：负载均衡损失函数 (Load Balancing Loss)
+# 07. MoE Load Balancing Loss | MoE 进阶：负载均衡损失函数 (Load Balancing Loss)
 
 **难度：** Hard | **标签：** `MoE`, `Loss Function`, `Mixtral` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/07_MoE_Load_Balancing_Loss.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在上一节 `06_MoE_Router` 中，我们实现了 Top-K 路由。但在真实的 MoE 模型（如 Mixtral 8x7B, DeepSeek）训练中，会遇到一个非常致命的问题：**路由崩塌 (Router Collapse)**。
 即门控网络“偷懒”，把所有的 Token 都发给了第 0 号和第 1 号专家，导致其他专家被饿死（闲置），不仅失去了 MoE 的意义，还会导致算力极度不均衡（OOM）。
 因此，面试官极度爱考：**如何用代码实现 MoE 的辅助损失函数 (Auxiliary Loss) 来强制负载均衡？**
-
 
 ### Step 1: 核心数学公式
 
@@ -30,16 +28,13 @@ $$ L_{aux} = \alpha \cdot E \sum_{i=1}^E f_i \cdot P_i $$
 **为什么这个公式有效？**
 根据均值不等式，给定总和为 1 的 $f$ 和 $P$，当且仅当所有的 $f_i = 1/E$ 且 $P_i = 1/E$ 时（即绝对均匀分配），它们的内积（点积）之和最小。优化器为了降低这个 Loss，会拼命把 Token 往不同的专家那里赶！
 
-
 ### Step 2: 负载均衡损失的数学原理
 为了防止所有 Token 都涌向少数几个专家（导致计算瓶颈和崩溃），我们需要引入辅助损失函数：
 $$ L_{aux} = N \sum_{i=1}^E f_i \cdot P_i $$
 其中 $f_i$ 是当前 Batch 内被路由到专家 $i$ 的 Token 比例，$P_i$ 是路由网络输出给专家 $i$ 的平均概率。目标是最小化两者的乘积，迫使分配更加均匀。
 
-
 ### Step 3: 代码实现框架
 你需要统计在当前批次中每个专家实际被选中的次数（形成频率分布），同时求出门控概率的均值分布。将这两个分布点乘并乘以专家总数和超参数 $\alpha$，即可得到最终的 Load Balancing Loss。
-
 
 ###  Step 4: 动手实战
 
@@ -97,6 +92,7 @@ def compute_load_balancing_loss(router_logits: torch.Tensor, num_experts: int, a
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_aux_loss():
@@ -148,9 +144,6 @@ test_aux_loss()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 混合专家模型（MoE）的负载均衡损失函数（Load Balancing Loss）旨在解决专家不平衡问题。它通过计算各专家被路由的平均概率与平均分配比例的乘积，并求和，确保所有的 Token 能够均匀地分配给不同的专家，防止少数专家过载而大部分专家空闲。
 
 ```python
@@ -167,10 +160,3 @@ def compute_load_balancing_loss(routing_weights, selected_experts, num_experts):
     loss = (f_i * P_i).sum() * num_experts
     return loss
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

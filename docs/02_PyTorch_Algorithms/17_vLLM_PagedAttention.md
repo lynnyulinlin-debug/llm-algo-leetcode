@@ -1,15 +1,14 @@
-# 17 vLLM PagedAttention
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/17_vLLM_PagedAttention.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 17. 经典推理框架: 模拟 Continuous Batching 与 PagedAttention
+# 17. vLLM PagedAttention | 经典推理框架: 模拟 Continuous Batching 与 PagedAttention
 
 **难度：** Hard | **标签：** `推理架构`, `vLLM` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/17_vLLM_PagedAttention.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 本节我们将揭秘工业界大模型推理框架（如 **vLLM**）的两大杀手锏技术：**Continuous Batching (连续批处理/动态批处理)** 和 **PagedAttention (分页注意力池)**。
 这是目前算法面经里含金量最高，但资料最匮乏的部分！
@@ -17,8 +16,7 @@
 > **相关阅读**:
 > 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
 > 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
->  [`../03_CUDA_and_Triton_Kernels/10_Triton_KV_Cache_and_PagedAttention.md`](../03_CUDA_and_Triton_Kernels/10_Triton_KV_Cache_and_PagedAttention.md)
-
+>  [`../03_CUDA_and_Triton_Kernels/10_Triton_KV_Cache_and_PagedAttention.ipynb`](../03_CUDA_and_Triton_Kernels/10_Triton_KV_Cache_and_PagedAttention.md)
 
 
 ### Step 1: 核心思想与痛点
@@ -33,10 +31,8 @@
 > **解法：PagedAttention (vLLM)**
 > 借鉴操作系统的虚拟内存管理。把显存切分成固定大小的 **Block** (比如 1个Block存16个Token)。在生成时，按需分配物理 Block，并通过 `Block Table` (块表) 记录虚拟 Token 序列到物理块的映射。
 
-
 ### Step 2: 代码实现框架
 系统需要维护一个 `BlockTable`，它是一个二维字典或矩阵，记录了每个序列的逻辑 Block 对应着显存池（K_Cache 和 V_Cache 池）中的哪个物理 Block ID。在解码时，通过查询这个表，将散落的物理 Block 重新聚集起来，与当前的 Query 向量进行 Attention 点积。
-
 
 ###  Step 3: PagedAttention 模拟机制
 
@@ -45,7 +41,6 @@
 1. **Physical Block Pool (物理块池)**：一个预先分配好的大张量，形状为 `[num_blocks, block_size, hidden_dim]`。
 2. **Block Table (块表)**：每个 Request 都有一个专属的块表，它是一个整数列表（`List[int]`），记录了这个 Request 的第 $i$ 个逻辑块存在物理池的哪个索引里。
 3. **KV Cache Manager**：负责在 Token 生成时，“按需”分配新的物理块索引。
-
 
 ###  Step 4: 动手实战
 
@@ -131,6 +126,7 @@ class KVCacheManager:
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_paged_attention_manager():
@@ -192,9 +188,6 @@ test_paged_attention_manager()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 PagedAttention 的灵感来源于操作系统中的虚拟内存管理，利用分页存储机制管理 KV Cache。其核心是在显存中按块分配缓存，从而能够显著提升显存利用率和并发度，是 vLLM 框架的基石。
 
 ```python
@@ -219,10 +212,3 @@ def paged_attention_sim(query, key_cache, value_cache, block_tables, context_len
         
     return out
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

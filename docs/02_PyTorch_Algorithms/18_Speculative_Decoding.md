@@ -1,15 +1,14 @@
-# 18 Speculative Decoding
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/18_Speculative_Decoding.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 18. 投机解码：打破推理的访存瓶颈 (Speculative Decoding)
+# 18. Speculative Decoding | 投机解码：打破推理的访存瓶颈 (Speculative Decoding)
 
 **难度：** Medium | **标签：** `Inference`, `Memory Bound` | **目标人群：** 模型部署与推理引擎开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/18_Speculative_Decoding.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在 16、17 节中，我们探讨了系统级优化（PagedAttention, SGLang）。本节我们将剖析推理领域近年来最大的**算法级**创新 —— **投机解码 (Speculative Decoding)**。
 
@@ -20,7 +19,6 @@
 > 1. **草拟 (Draft)**：找一个非常小、速度极快的小模型（比如 1B 参数），让它连续盲猜并生成接下来 $K$ 个 Token（比如 4 个）。
 > 2. **验证 (Verify)**：将这 $K$ 个草拟的 Token 一次性喂给庞大的目标模型（如 70B）。因为是并行计算，大模型验证这 4 个 Token 的时间，几乎和生成 1 个 Token 的时间一样短！
 > 3. **接受与拒绝**：如果大模型的输出概率认同小模型的猜测，我们就直接白嫖了这 4 个 Token。如果不认同，我们在出错的地方截断，并用大模型的正确分布重采样。
-
 
 ### 动手实战：核心的接受/拒绝逻辑
 
@@ -76,6 +74,7 @@ def speculative_verify(draft_probs, target_probs, draft_tokens):
 
 
 ```
+
 
 ```python
 def test_speculative_decoding():
@@ -144,9 +143,6 @@ test_speculative_decoding()
 
 ---
 
-
-::: details 💡 点击查看官方解析与参考代码
-
 投机解码（Speculative Decoding）通过小模型草拟和大模型并行验证，将原本由于 Memory Bound 导致的计算等待时间转化为并发算力。验证时采用 $p/q$ 的接受概率，在数学上完美保证了即使经过了小模型的瞎猜，最终采样的 Token 分布依然和只用大模型自回归生成的分布严格一致，实现了“无损加速”。
 
 
@@ -174,10 +170,3 @@ def speculative_verify(draft_probs, target_probs, draft_tokens):
 
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

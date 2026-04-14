@@ -1,15 +1,14 @@
-# 13 Triton Llama3 Block Project
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/13_Triton_Llama3_Block_Project.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 13. 综合工程实战：使用 Triton 从头组装 LLaMA-3 Transformer Block
+# 13. Triton Llama3 Block Project | 综合工程实战：使用 Triton 从头组装 LLaMA-3 Transformer Block
 
 **难度：** Hard | **标签：** `Triton`, `End-to-End Project`, `LLaMA-3`, `Integration` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/13_Triton_Llama3_Block_Project.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 这是本教程 **Triton 算子开发**章节的大考 (Capstone Project)。
 在工业界，写出几个零散的算子只是 Demo。你需要将这些算子封装成标准的 `torch.autograd.Function` 或标准的 `nn.Module`，去**平替** PyTorch 原生的极度耗时的层，最终拼装出一个完全由 Triton 加速的 `Llama3TritonBlock`。
@@ -18,7 +17,6 @@
 1. 回顾并调用我们在前几节手写的：Triton Fused RMSNorm, Triton Fused RoPE, Triton Flash Attention, Triton Fused SwiGLU。
 2. 封装 PyTorch 的 `nn.Module` 接口。
 3. 运行端到端的 Benchmark，直观感受到算子融合带来的极致性能提升 (Latency 降低)。
-
 
 ### Step 1: 算子替换与模块集成规范
 
@@ -33,14 +31,11 @@
 > 2. 在 Layer 的 `forward` 方法中，直接调用包含 `kernel[grid](...)` 的 Triton 封装函数。
 > 3. （如果需要训练）继承 `torch.autograd.Function` 实现 `forward` 和 `backward`，并在 `nn.Module` 中调用 `YourFunction.apply`。本节为了聚焦前向推理性能，只集成推理部分的替换。
 
-
 ### Step 2: 算子替换与模块集成规范
 这是一个架构拼装工程。虽然我们在前面手写出了所有加速算子，但要组装回基于 `nn.Module` 的 PyTorch 模型中，必须处理好接口（Interface）封装问题，并确保前向传播在 AutoGrad (反向图) 中的逻辑隔离或兼容。
 
-
 ### Step 3: 集成代码框架
 定义一个 `Llama3TritonBlock(nn.Module)` 类。在 `__init__` 中保留 `nn.Linear` 管理权重，但在 `forward` 阶段，彻底废弃原生的 `F.silu` 等调用，将这些中间环节全面替换为你手写的 `triton_fused_swiglu` 和 `triton_flash_attention` 调用。
-
 
 ###  Step 4: 动手实战
 
@@ -145,6 +140,7 @@ class TritonLlama3Block(nn.Module):
 
 ```
 
+
 ```python
 # 端到端性能对比 (Triton 组装 Block vs PyTorch 纯原生)
 import time
@@ -204,9 +200,6 @@ run_end_to_end_benchmark()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 ### 💡 参考解答：组装 LLaMA-3 Triton Block
 
 在这个综合项目中，我们将底层算子与 PyTorch 的 `nn.Module` 高层抽象完美结合：
@@ -296,10 +289,3 @@ class TritonLlama3Block(nn.Module):
         
         return out
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

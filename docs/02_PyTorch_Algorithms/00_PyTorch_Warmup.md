@@ -1,19 +1,17 @@
-# 00 PyTorch Warmup
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 00. PyTorch 核心基础热身: 张量、前反向传播与 Embedding (Warmup)
+# 00. PyTorch Warmup | PyTorch 核心基础热身: 张量、前反向传播与 Embedding (Warmup)
 
 **难度：** Easy | **标签：** `PyTorch`, `Foundation` | **目标人群：** 通用基础 (算法/Infra)
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 在深入大模型的浩瀚海洋（如 Attention、LoRA、MoE）之前，我们必须确保自己的“底层积木”是非常扎实的。
 本节作为**热身关卡**，将用三个非常经典的实战填空，带你快速找回 PyTorch 的核心肌肉记忆：张量维度变换 (Tensor Reshaping)、嵌入层查表 (Embedding Lookup) 以及链式法则的反向传播 (Backpropagation)。
-
 
 ### Part 1: 张量维度变换与 `einops`
 
@@ -143,6 +141,7 @@ class LinearReLUFunction(torch.autograd.Function):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_warmup():
@@ -206,9 +205,6 @@ test_warmup()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 本节通过三个实战任务带你快速复习 PyTorch 核心操作。在张量维度变换中，原生的 permute+reshape 和 einops.rearrange 都能完成通道转换与展平；在 Embedding 层模拟中，深入体会了 nn.Embedding 本质就是权重的查表；在反向传播推导中，我们利用链式法则计算了经过 ReLU 和 Linear 层的梯度，这是理解大模型底层 Autograd 机制的关键。
 
 ```python
@@ -242,10 +238,3 @@ class LinearReLUFunction(torch.autograd.Function):
         grad_bias = grad_z.sum(dim=0)
         return grad_x, grad_weight, grad_bias
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

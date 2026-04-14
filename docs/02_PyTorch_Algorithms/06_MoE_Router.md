@@ -1,19 +1,17 @@
-# 06 MoE Router
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/06_MoE_Router.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 06. 混合专家架构: 稀疏路由与负载均衡 (MoE)
+# 06. MoE Router | 混合专家架构: 稀疏路由与负载均衡 (MoE)
 
 **难度：** Medium | **标签：** `模型架构`, `MoE`, `PyTorch` | **目标人群：** 模型微调与工程部署
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/06_MoE_Router.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 本节我们将解析目前最火爆的模型架构：**MoE (Mixture of Experts)**。这也是 Mixtral、Grok、DeepSeek 等顶级开源模型背后的核心技术。
 面试中最常考的并不是专家的内部结构，而是那个“交通警察”——**路由机制 (Router) 和专家权重计算**。
-
 
 ### Step 1: 核心思想与痛点
 
@@ -25,10 +23,8 @@
 > 对于每一个输入的 Token，通过一个非常轻量的 Router (门控网络) 决定它该去请教哪 $K$ 个专家（通常 $K=2$）。
 > 这样，即便总参数量有 8x7B=56B，实际每个 Token 只激活了 2x7B=14B 的参数。**计算量骤降，而知识容量剧增。**
 
-
 ### Step 2: 代码实现框架
 在门控网络中，我们首先计算输入对各个专家的打分矩阵（logits），然后通过 `torch.topk` 获取最大的 K 个分数及其对应的专家索引。最后对这 K 个分数应用 Softmax 进行归一化，作为专家输出的加权系数。
-
 
 ###  Step 3: 核心数学机制：Top-K Routing
 
@@ -46,7 +42,6 @@ $$ p_{topk} = \text{Softmax}(\text{TopK}(h, K)) $$
 **3. 最终输出融合：**
 Token 经过这 $K$ 个专家的计算后，按权重加权求和：
 $$ y = \sum_{i \in \text{TopK}} p_i \cdot \text{Expert}_i(x) $$
-
 
 ###  Step 4: 动手实战
 
@@ -152,6 +147,7 @@ class SparseMoEBlock(nn.Module):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_moe_router():
@@ -203,9 +199,6 @@ test_moe_router()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 混合专家模型（MoE）的灵魂在于稀疏路由机制。输入特征首先通过一个门控全连接层映射到所有专家的得分。接着利用 torch.topk 选取得分最高的 K 个专家（保留分数与索引），对这 K 个分数做局部 Softmax 归一化。在聚合阶段，不同于常规稠密计算，只有被选中的专家才会对特定 Token 的计算进行加权求和，从而以极小的激活参数量扩展了模型的总容量。
 
 ```python
@@ -228,10 +221,3 @@ class TopKRouter(nn.Module):
         
         return routing_weights, selected_experts
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

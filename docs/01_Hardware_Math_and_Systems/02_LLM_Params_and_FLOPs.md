@@ -1,4 +1,4 @@
-# 讨论题 02：大模型参数量与算力推导 (LLM Params & FLOPs Math)
+# 02. LLM Params and FLOPs | 大模型参数量与算力推导 (LLM Params & FLOPs Math)
 
 **难度：** Medium | **标签：** `数学推导`, `Transformer` | **目标人群：** 通用基础 (算法/Infra)
 

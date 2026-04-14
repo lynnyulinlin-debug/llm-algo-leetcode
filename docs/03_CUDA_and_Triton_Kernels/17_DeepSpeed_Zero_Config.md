@@ -1,20 +1,18 @@
-# 17 DeepSpeed Zero Config
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/17_DeepSpeed_Zero_Config.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 17. 分布式工程落地：解析 DeepSpeed ZeRO 配置文件与 CPU Offload
+# 17. DeepSpeed Zero Config | 分布式工程落地：解析 DeepSpeed ZeRO 配置文件与 CPU Offload
 
 **难度：** Medium | **标签：** `Distributed Training`, `DeepSpeed`, `JSON Config` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/17_DeepSpeed_Zero_Config.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在实际工程中，我们很少会去手写底层的 `dist.all_gather`，而是将 PyTorch 原生模型丢给 **Microsoft DeepSpeed** 或是 **HuggingFace Accelerate**，通过极简的 JSON 配置文件，一键开启 ZeRO-1 / 2 / 3 加速。
 面试中极常考察：“你能解释一下 ZeRO 配置文件中的 `stage`, `overlap_comm`, `cpu_offload` 分别是干什么的吗？”
 本节我们将以一份真实的 DeepSpeed 配置文件为题眼，解析其各个核心字段的工程意义。
-
 
 ### Step 1: ZeRO 配置文件核心参数深度解析
 
@@ -31,14 +29,11 @@
 > **`overlap_comm` (通信计算重叠):**
 > 我们在第 21 节学过，计算和传输应该是并行的！开启此项，DeepSpeed 会在执行矩阵乘法 (Compute) 时，提前异步在后台拉取下一个需要的块的数据 (Communication)。
 
-
 ### Step 2: ZeRO 配置文件与显存切分映射
 DeepSpeed 最核心的能力是接管 PyTorch 的底层通信逻辑。在 ZeRO-1 中切分 Optimizer State；ZeRO-2 进一步切分 Gradients；ZeRO-3 甚至把模型 Weights 彻底切碎，只有在经过该层时才动态 Gather 回来。还能通过 `offload_optimizer` 把沉重的 Adam 状态踢到 CPU 内存去计算。
 
-
 ### Step 3: JSON Config 解析框架
 这里不需要写底层 C++。你需要深刻理解 `ds_config.json` 中的字段意义，如 `zero_optimization.stage`, `overlap_comm`, `reduce_scatter` 等。在这个实验中，读取配置字典，分析开启某些开关后对显存和带宽造成的双向影响。
-
 
 ###  Step 4: 动手实战
 
@@ -107,6 +102,7 @@ def build_deepspeed_config():
 
 ```
 
+
 ```python
 # 测试并验证配置
 def test_deepspeed_config():
@@ -146,9 +142,6 @@ test_deepspeed_config()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 
 ### 💡 核心实现原理解析
 
@@ -203,10 +196,3 @@ def build_deepspeed_config():
     
     return ds_config
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

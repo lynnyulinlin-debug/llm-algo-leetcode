@@ -1,18 +1,16 @@
-# 13 DPO Loss Tutorial
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/13_DPO_Loss_Tutorial.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 13. 直接偏好优化 Loss 源码解析与实现 (DPO)
+# 13. DPO Loss Tutorial | 直接偏好优化 Loss 源码解析与实现 (DPO)
 
 **难度：** Hard | **标签：** `微调`, `RLHF`, `Loss Function` | **目标人群：** 模型微调与工程部署
 
-本节我们将实现目前大语言模型领域最炙手可热的对齐算法：**DPO (Direct Preference Optimization)**。相比于 PPO，DPO 将强化学习的 Reward Model 省略，直接利用交叉熵的变体去拟合人类偏好，非常优雅且高效。
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/13_DPO_Loss_Tutorial.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
+
+本节我们将实现目前大语言模型领域最炙手可热的对齐算法：**DPO (Direct Preference Optimization)**。相比于 PPO，DPO 将强化学习的 Reward Model 省略，直接利用交叉熵的变体去拟合人类偏好，非常优雅且高效。
 
 ### Step 1: 核心思想与痛点
 
@@ -21,10 +19,8 @@
 > **DPO 的本质：**
 > 作者通过数学推导证明了：Reward Model 的奖励得分 $r(x,y)$ 可以隐式地由语言模型的概率 $P_	heta(y|x)$ 表达出来。因此，我们只需要**Actor 模型和 Reference 模型**，直接在一对一比较的样本上（Chosen vs Rejected）最大化对数似然差值。
 
-
 ### Step 2: DPO 损失代码框架
 需要四组对齐的数据：选中的 Logprobs ($y_w$) 和拒绝的 Logprobs ($y_l$)，分别来自当前策略模型（Policy）和冻结的参考模型（Reference）。计算它们之间的隐式奖励差，并将其送入 `-F.logsigmoid()` 以获得最终梯度损失。
-
 
 ###  Step 3: 核心公式
 
@@ -45,7 +41,6 @@
    $$ L_{DPO} = -\log \sigma \left( \hat{r}(x, y_w) - \hat{r}(x, y_l) \right) $$
 
    其中 $\beta$ 是控制偏离 Reference Model 程度的温度参数（如 `0.1`）。
-
 
 ###  Step 4: 动手实战
 
@@ -109,6 +104,7 @@ def dpo_loss(
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_dpo_loss():
@@ -163,9 +159,6 @@ test_dpo_loss()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 直接偏好优化（DPO）损失旨在绕过强化学习阶段，通过对比正向样本和负向样本的隐式奖励来优化策略。代码计算了参考模型和策略模型对被选中和被拒绝样本的对数概率比，通过 Sigmoid 函数形成交叉熵损失。
 
 ```python
@@ -183,10 +176,3 @@ def compute_dpo_loss(policy_chosen_logps, policy_rejected_logps,
     
     return losses.mean(), rewards_chosen.mean(), rewards_rejected.mean()
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

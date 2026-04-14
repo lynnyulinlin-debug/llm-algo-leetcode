@@ -1,15 +1,14 @@
-# 25 Pipeline Parallelism MicroBatch
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/25_Pipeline_Parallelism_MicroBatch.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 25. 分布式进阶：流水线并行与微批次气泡 (Pipeline Parallelism)
+# 25. Pipeline Parallelism MicroBatch | 分布式进阶：流水线并行与微批次气泡 (Pipeline Parallelism)
 
 **难度：** Hard | **标签：** `Distributed Training`, `Pipeline Parallelism` | **目标人群：** 核心 Infra 开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/25_Pipeline_Parallelism_MicroBatch.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在前面我们学习了 ZeRO (切分优化器/梯度/状态) 和 Tensor Parallelism (把矩阵乘法切成小块)。
 但当模型达到几千亿参数时（例如 Llama 3 400B），单台拥有 8 张 GPU 的服务器连存放切分后的切片都做不到！必须使用跨服务器的大规模集群。跨服务器的网络带宽非常慢，此时只能引入 **3D 混合并行的最后一块拼图：流水线并行 (Pipeline Parallelism, PP)**。
@@ -21,7 +20,6 @@
 > 前向传播时，必须等 GPU 1 算完，GPU 2 才能开工。反向传播时，必须等 GPU 8 算完，GPU 7 才能接收到梯度。这种严重的等待空窗期被称为 **气泡 (Bubble)**。
 
 本节我们将推导计算气泡比例的工业级公式，并了解经典的 1F1B 调度。
-
 
 ### 理论与公式计算
 
@@ -61,6 +59,7 @@ def compute_bubble_ratio(p, m):
 
 ```
 
+
 ```python
 def test_pipeline_bubble():
     try:
@@ -91,9 +90,6 @@ test_pipeline_bubble()
 
 ---
 
-
-::: details 💡 点击查看官方解析与参考代码
-
 流水线并行（Pipeline Parallelism）是千亿级大模型跨物理机训练的必备组件。通过切分模型深度，配合 Micro-batch 流水作业以及 1F1B（One-Forward-One-Backward）调度算法，可以极大地掩盖设备之间的相互等待时间。气泡比率的公式揭示了一个核心工程实践：微批次的数量必须远大于流水线深度。
 
 
@@ -104,10 +100,3 @@ def compute_bubble_ratio(p, m):
 
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

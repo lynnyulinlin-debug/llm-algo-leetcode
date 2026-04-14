@@ -1,19 +1,17 @@
-# 22 QLoRA and 4bit Quantization
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/22_QLoRA_and_4bit_Quantization.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 22. QLoRA 与 4-bit NormalFloat 量化核心机制 (QLoRA & 4bit)
+# 22. QLoRA and 4bit Quantization | QLoRA 与 4-bit NormalFloat 量化核心机制 (QLoRA & 4bit)
 
 **难度：** Hard | **标签：** `微调`, `QLoRA`, `量化` | **目标人群：** 模型微调与工程部署
 
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/22_QLoRA_and_4bit_Quantization.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
+
 QLoRA 是 2023-2024 年微调界最具重要的论文。它通过引入 **4-bit NormalFloat (NF4)** 数据类型和 **双重量化 (Double Quantization)**，让算法工程师在一张非常廉价的 24GB 显卡上微调高达 33B 的大语言模型成为了现实。
 本节我们将实现模拟 QLoRA 的训练过程：冻结低精度的基础权重，在计算前向/反向时动态反量化，只更新高精度的 LoRA 参数。
-
 
 ### Step 1: 核心机制
 
@@ -28,14 +26,11 @@ QLoRA 是 2023-2024 年微调界最具重要的论文。它通过引入 **4-bit 
 > 3. 旁边挂载的 LoRA 矩阵 A 和 B 是高精度的 BF16/FP32，并且 `requires_grad=True`。
 > 4. 反向传播时，梯度从输出流向 LoRA（更新参数），也流向基础权重（但不更新它，仅仅为了传递梯度）。
 
-
 ### Step 2: 4-bit NormalFloat (NF4) 原理
 QLoRA 的核心在于 NF4 数据类型。由于神经网络的权重通常服从均值为 0 的正态分布，NF4 根据正态分布的累积概率函数，将信息密度高的地方划分更密集的量化区间。配合双重分块量化（Double Quantization），能够把底座模型的显存消耗压榨到极限的 4 bits 每参数。
 
-
 ### Step 3: 代码实现框架
 本节我们将模拟一个 16 个元素的 NF4 查表（Lookup Table）。在实际的 QLoRA 层中，权重的类型是 `torch.uint8`，但在前向传播的那一刻，我们利用这个查表将它瞬间恢复为 FP16，然后用 FP16 与输入特征做矩阵乘法。这个过程虽然比原生的 FP16 慢，但却能在一张消费级显卡上微调几百亿参数的模型。
-
 
 ###  Step 4: 动手实战
 
@@ -100,6 +95,7 @@ class QLoRALinearSim(nn.Module):
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_qlora():
@@ -152,9 +148,6 @@ test_qlora()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 QLoRA 将 LoRA 和 4-bit NormalFloat 权重量化结合起来，在单卡上实现了超大模型的微调。实现重点在于双重量化机制和基于分块的量化参数管理，以此打破微调大模型时的显存瓶颈。
 
 ```python
@@ -177,10 +170,3 @@ def dequantize_4bit(quantized, scales, block_size=64):
     
     return dequantized.view_as(quantized)
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

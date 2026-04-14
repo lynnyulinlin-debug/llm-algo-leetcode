@@ -1,18 +1,16 @@
-# 01 Triton Vector Addition
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/01_Triton_Vector_Addition.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 01. Triton 入门与 Hello World：向量加法 (Vector Addition)
+# 01. Triton Vector Addition | Triton 入门与 Hello World：向量加法 (Vector Addition)
 
 **难度：** Easy | **标签：** `入门`, `Triton` | **目标人群：** 通用基础 (算法/Infra)
 
-这是 Triton 编程的“Hello World”。在这里，你将抛弃平时在 PyTorch 里理所当然的 `z = x + y`，而是站在 GPU 硬件的视角，亲自控制“指针”、“内存偏移”和“线程块（Block）”，体会最原始的数据搬运。
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/01_Triton_Vector_Addition.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
 
+
+这是 Triton 编程的“Hello World”。在这里，你将抛弃平时在 PyTorch 里理所当然的 `z = x + y`，而是站在 GPU 硬件的视角，亲自控制“指针”、“内存偏移”和“线程块（Block）”，体会最原始的数据搬运。
 
 ### Step 1: 核心思想与编程模型
 
@@ -25,10 +23,8 @@
 > 我们把任务切分成很多个“Block”（比如每个 Block 处理 1024 个元素）。
 > 那么我们需要启动 `100000 / 1024` 取整 个 Program。这就是所谓的 `Grid` 大小。
 
-
 ### Step 2: Triton 内核与寻址掩码框架
 在 Triton 中，你需要使用 `tl.program_id` 确定当前线程块的 ID，并计算出所负责的数据指针偏移 `offs`。在加载和存储数据时，由于数组总长度不一定是 `BLOCK_SIZE` 的整数倍，必须生成一个类似 `offs < N` 的掩码变量 `mask` 并在 `tl.load` 和 `tl.store` 时传入以防止内存越界（Segmentation Fault）。
-
 
 ###  Step 3: 核心 API
 
@@ -36,7 +32,6 @@ Triton 的语法非常固定，通常包含以下三板斧：
 1. **定位自己**：`pid = tl.program_id(0)` 获取当前是第几个 Block。
 2. **计算偏移**：`offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)` 计算当前 Block 应该去读显存里的哪些位置。
 3. **边界保护 (Mask)**：如果向量长度不是 `BLOCK_SIZE` 的整数倍，最后一个 Block 就会越界报错。我们需要一个 `mask = offsets < N` 来保护显存读写。
-
 
 ###  Step 4: 动手实战
 
@@ -104,6 +99,7 @@ def triton_add(x: torch.Tensor, y: torch.Tensor):
 
 ```
 
+
 ```python
 # 测试你的实现
 def test_vector_add():
@@ -153,9 +149,6 @@ test_vector_add()
 
 ---
 
-
-::: details 💡 点击查看官方解析与参考代码
-
 ## 官方解析与参考代码
 
 **解析：**
@@ -186,10 +179,3 @@ def add_kernel_solution(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexp
     tl.store(z_ptr + offsets, z, mask=mask)
 
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！

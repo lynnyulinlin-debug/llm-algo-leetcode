@@ -1,4 +1,4 @@
-# 讨论题 10：算力现状与替代方案 (AI Chips Overview)
+# 10. Domestic AI Chips Overview | 算力现状与替代方案 (AI Chips Overview)
 
 **难度：** Medium | **标签：** `系统架构`, `异构算力`, `拓展阅读` | **目标人群：** 核心 Infra 与算子开发
 

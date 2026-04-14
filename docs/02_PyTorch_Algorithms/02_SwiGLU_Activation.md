@@ -1,15 +1,14 @@
-# 02 SwiGLU Activation
-
-> 🚀 **云端运行环境**
-> 
-> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
-> 
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/02_SwiGLU_Activation.ipynb)  
-> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
-
-# 02. 激活函数与门控机制 (SwiGLU Activation)
+# 02. SwiGLU Activation | 激活函数与门控机制 (SwiGLU Activation)
 
 **难度：** Easy | **标签：** `模型架构`, `激活函数` | **目标人群：** 模型微调与工程部署
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/02_PyTorch_Algorithms/02_SwiGLU_Activation.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 在组装 LLaMA-3 的那一节中，我们使用了 `SwiGLU` 作为 MLP 的激活函数。为什么所有主流大模型（LLaMA, Qwen, Mistral, PaLM）都在抛弃 ReLU/GELU 而转向 SwiGLU？
 本节我们将深入推导 SwiGLU 的设计原理，特别是**如何调整隐藏层的维度**，以保证参数量与标准 Transformer 严格对齐。这是面试中非常经典的**架构推导题**。
@@ -17,9 +16,8 @@
 > **相关阅读**:
 > 本节使用纯 PyTorch 实现了算法逻辑与数学推导。
 > 如果你想学习工业界如何打破该算子的 Memory Bound (访存瓶颈)，请前往 Triton 篇：
->  [`../03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.md`](../03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.md)
+>  [`../03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.ipynb`](../03_CUDA_and_Triton_Kernels/02_Triton_Fused_SwiGLU.md)
 >
-
 
 ### Step 1: 核心思想与痛点
 
@@ -32,10 +30,8 @@
 > **什么是 SwiGLU？**
 > 就是把 GLU 中的激活函数 $\sigma$ 换成了 **Swish**（即 $x \cdot \text{Sigmoid}(\beta x)$，在 PyTorch 中 $\beta=1$ 时等于 `SiLU`）。
 
-
 ### Step 2: 代码实现框架
 经典的 SwiGLU 实现通常需要三个权重矩阵：`W_gate`, `W_up`, 和 `W_down`。输入 `x` 分别经过前两个线性层，其中一个经过 SiLU 激活，然后两者逐元素相乘，最后再经过 `W_down` 投影回原始维度。
-
 
 ###  Step 3: 核心数学机制：参数量对齐
 
@@ -61,7 +57,6 @@
    解得：$h_{swiglu} = \mathbf{\frac{8}{3}d}$
    
 *这正是 LLaMA 源码中对中间层维度进行 `int(8 * hidden_size / 3)` 计算的根本原因！*
-
 
 ###  Step 4: 动手实战
 
@@ -119,6 +114,7 @@ class SwiGLU_MLP(nn.Module):
 
 ```
 
+
 ```python
 # 运行此单元格以测试你的实现
 def test_swiglu():
@@ -170,9 +166,6 @@ test_swiglu()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-
-::: details 💡 点击查看官方解析与参考代码
-
 SwiGLU 替代了传统 MLP，用门控机制（Gate 和 Up）进行升维，然后点乘再 Down 降维。通过推导公式 3 * d * h = 8 * d^2，隐藏层维度为 8/3 倍。为了提升硬件的访存效率，我们还需要将该维度向上取整对齐到 multiple_of 的倍数。代码中实现了计算这个对齐大小，以及前向计算 down_proj(SiLU(gate_proj(x)) * up_proj(x))。
 
 ```python
@@ -191,10 +184,3 @@ class SwiGLU_MLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
 ```
-
-:::
-
----
-
-> 💡 **有更好的解法或性能优化？**
-> 欢迎在下方评论区交流你的思路，或者直接点击页面底部的「在 GitHub 上编辑此页」提交 PR，将你的优质代码合并到官方题解中！
