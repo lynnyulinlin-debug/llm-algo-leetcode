@@ -62,7 +62,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+```
 
+
+```python
 def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
     将浮点张量 X 量化为 INT8，并返回缩放因子。
@@ -75,7 +78,6 @@ def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
     # ==========================================
     # TODO 1: 计算张量的绝对最大值 absmax
-    # 提示: 使用 torch.abs 和 torch.max
     # ==========================================
     # absmax = ???
     
@@ -91,9 +93,6 @@ def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     # ==========================================
     # TODO 3: 量化过程
     # 1. 乘以 scale
-    # 2. 四舍五入 (torch.round)
-    # 3. 截断到 [-128, 127] (torch.clamp)
-    # 4. 转换数据类型为 torch.int8 (x.to(torch.int8))
     # ==========================================
     # x_scaled = ???
     # x_quant = ???
@@ -185,7 +184,7 @@ def test_quantization():
         cos_sim = F.cosine_similarity(out_fp.flatten(), out_q.flatten(), dim=0)
         assert cos_sim > 0.99, f"反量化计算出的张量与原始张量差异过大，相似度仅为: {cos_sim.item():.4f}"
         
-        print(f"✅ W8A16Linear 测试通过！输出相似度极高 (Cosine Sim: {cos_sim.item():.4f})，且权重内存成功缩小 4 倍！")
+        print(f"✅ W8A16Linear 测试通过！输出相似度极高 (Cosine Sim: {cos_sim.item():.4f})，且权重内存缩小 4 倍。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
@@ -209,16 +208,90 @@ test_quantization()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-权重量化（W8A16）是一种能够在不明显损失精度的前提下，将模型权重的显存占用减半的技术。在实现中，我们将 FP16 权重转换为 INT8，并在推理计算前进行反量化，或者在特定的自定义算子中直接计算。
+## 参考代码与解析
+
+### 代码
 
 ```python
-def quantize_to_int8(tensor):
-    scale = tensor.abs().max() / 127.0
+def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    将浮点张量 X 量化为 INT8，并返回缩放因子。
+    """
+    # TODO 1: 计算张量的绝对最大值 absmax
+    absmax = torch.max(torch.abs(x))
     
-    quantized_tensor = torch.round(tensor / scale).to(torch.int8)
+    # 避免除以 0 的情况
+    if absmax == 0:
+        absmax = 1e-8
+        
+    # TODO 2: 计算缩放因子 scale (映射到 [-127, 127])
+    scale = 127.0 / absmax
     
-    return quantized_tensor, scale
+    # TODO 3: 量化过程
+    x_scaled = x * scale
+    x_quant = torch.clamp(torch.round(x_scaled), -128, 127).to(torch.int8)
     
-def dequantize_from_int8(quantized_tensor, scale, dtype=torch.float16):
-    return (quantized_tensor.to(dtype) * scale)
+    return x_quant, scale
+
+class W8A16Linear(nn.Module):
+    """
+    Weight-only INT8 量化线性层。
+    """
+    def __init__(self, in_features: int, out_features: int):
+        super().__init__()
+        self.register_buffer("weight_int8", torch.zeros((out_features, in_features), dtype=torch.int8))
+        self.register_buffer("scale", torch.tensor(1.0))
+        self.bias = nn.Parameter(torch.zeros(out_features))
+
+    def from_float(self, linear_layer: nn.Linear):
+        """
+        从高精度的 Linear 层中吸收权重并进行 PTQ 量化
+        """
+        w_quant, scale = absmax_quantize(linear_layer.weight.data)
+        self.weight_int8.copy_(w_quant)
+        self.scale.copy_(scale)
+        if linear_layer.bias is not None:
+            self.bias.data.copy_(linear_layer.bias.data)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # TODO 4: 反量化与前向传播
+        # 1. 将 weight_int8 转换回与输入 x 相同的类型
+        w_fp = self.weight_int8.to(x.dtype)
+        
+        # 2. 除以 self.scale 恢复其数值范围
+        w_dequant = w_fp / self.scale
+        
+        # 3. 使用 F.linear 进行标准的矩阵乘法
+        out = F.linear(x, w_dequant, self.bias)
+        return out
 ```
+
+### 解析
+
+**1. TODO 1: 计算绝对最大值**
+- **实现方式**：`absmax = torch.max(torch.abs(x))`
+- **关键点**：找到张量中绝对值最大的元素，用于确定量化范围
+- **技术细节**：需要处理除零情况，当 absmax 为 0 时设为 1e-8
+
+**2. TODO 2: 计算缩放因子**
+- **实现方式**：`scale = 127.0 / absmax`
+- **关键点**：将浮点数范围映射到 INT8 的 [-127, 127] 区间
+- **技术细节**：使用 127 而非 128，保持对称性，避免 -128 这个特殊值
+
+**3. TODO 3: 量化过程**
+- **实现方式**：`x_scaled = x * scale`，`x_quant = torch.clamp(torch.round(x_scaled), -128, 127).to(torch.int8)`
+- **关键点**：先缩放、再四舍五入、最后截断到有效范围
+- **技术细节**：使用 `torch.clamp` 防止异常值越界，确保所有值在 [-128, 127] 内
+
+**4. TODO 4: 反量化与前向传播**
+- **实现方式**：`w_fp = self.weight_int8.to(x.dtype)`，`w_dequant = w_fp / self.scale`，`out = F.linear(x, w_dequant, self.bias)`
+- **关键点**：在计算前将 INT8 权重恢复为浮点数
+- **技术细节**：先转换数据类型，再除以 scale 恢复数值范围
+
+**工程优化要点**
+- **显存节省**：INT8 权重占用空间是 FP32 的 1/4，FP16 的 1/2
+- **带宽优化**：W8A16 虽然计算仍用 FP16，但从内存读取权重的带宽需求降低 2 倍
+- **精度损失**：对称量化通常损失 < 1% 精度，适合大多数推理场景
+- **Per-tensor vs Per-channel**：本实现是 per-tensor 量化，工业界常用 per-channel（每个输出通道独立 scale）以提高精度
+- **校准数据**：PTQ 需要少量校准数据（通常 128-512 样本）来统计激活值分布
+- **工业实践**：LLM.int8() 使用混合精度，对异常值（outlier）保持 FP16，其余用 INT8
