@@ -41,28 +41,24 @@
 ###  Step 4: 动手实战
 
 **要求**：请补全下方 `precompute_freqs_cis` 和 `apply_rotary_emb` 函数。
-提示：可以使用 `torch.view_as_complex` 和 `torch.view_as_real` 这两个神器！
+提示：可以使用 `torch.view_as_complex` 和 `torch.view_as_real` 这两个核心函数！
 
 
 ```python
 import torch
+```
 
+
+```python
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     """
     计算复数指数频率张量 (cis = cos + i * sin)
     """
-    # 1. 计算逆频率 1.0 / (theta ** (2i/dim))
-    # freqs = ???
-    
-    # 2. 生成从 0 到 end-1 的位置张量 t
-    # t = ???
-    
-    # 3. 外积生成 [seq_len, dim/2] 的角度矩阵
-    # freqs = torch.outer(t, freqs)
-    
     # ==========================================
     # TODO 1: 用极坐标生成复数张量 (提示: torch.polar)
     # ==========================================
+    # freqs = ???
+    # t = ???
     # freqs_cis = ???
     # return freqs_cis
     pass
@@ -81,24 +77,22 @@ def apply_rotary_emb(
     将旋转位置编码应用到 Query 和 Key 上
     """
     # ==========================================
-    # TODO 2: 将 xq, xk 从 [..., dim] 转为复数张量 [..., dim//2]
-    # 提示: 先 reshape 成 [..., -1, 2]，再用 torch.view_as_complex
+    # TODO 2: 将 xq, xk 从实数张量转为复数张量
+    # 提示: 
     # ==========================================
     # xq_ = ???
     # xk_ = ???
     
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
     
     # ==========================================
     # TODO 3: 进行复数乘法，并转回实数张量
-    # 提示: 相乘后用 torch.view_as_real，最后 flatten(3) 恢复维度
+    # 提示: 
     # ==========================================
     # xq_out = ???
     # xk_out = ???
     
     # return xq_out.type_as(xq), xk_out.type_as(xk)
     pass
-
 ```
 
 
@@ -106,23 +100,71 @@ def apply_rotary_emb(
 # 运行此单元格以测试你的实现
 def test_rope():
     try:
+        print("=" * 60)
+        print("开始测试 RoPE 旋转位置编码")
+        print("=" * 60)
+
         batch_size, seq_len, num_heads, head_dim = 2, 16, 4, 64
+
+        # Test 1: 形状测试
+        print("\n【Test 1】形状测试")
         xq = torch.randn(batch_size, seq_len, num_heads, head_dim)
         xk = torch.randn(batch_size, seq_len, num_heads, head_dim)
-        
+
         freqs_cis = precompute_freqs_cis(head_dim, seq_len)
         xq_out, xk_out = apply_rotary_emb(xq, xk, freqs_cis)
-        
-        assert xq_out.shape == xq.shape, f"Shape mismatch! Expected {xq.shape}, got {xq_out.shape}"
-        assert xk_out.shape == xk.shape
-        print("\n✅ All Tests Passed! 恭喜你，RoPE 算子复数版实现成功！")
-        
+
+        assert xq_out.shape == xq.shape, f"Query 输出形状错误: 期望 {xq.shape}, 实际 {xq_out.shape}"
+        assert xk_out.shape == xk.shape, f"Key 输出形状错误: 期望 {xk.shape}, 实际 {xk_out.shape}"
+        assert freqs_cis.shape == (seq_len, head_dim // 2), f"频率张量形状错误"
+        print("  ✅ 输出形状测试通过")
+        print("  ✅ 频率张量形状测试通过")
+
+        # Test 2: 数值范围测试
+        print("\n【Test 2】数值范围测试")
+        norm_before = torch.norm(xq, dim=-1)
+        norm_after = torch.norm(xq_out, dim=-1)
+        assert torch.allclose(norm_before, norm_after, rtol=1e-4, atol=1e-5), "RoPE 改变了向量模长！"
+        print("  ✅ 向量模长保持不变（旋转不变性）")
+
+        assert not torch.isnan(xq_out).any(), "输出包含 NaN！"
+        assert not torch.isinf(xq_out).any(), "输出包含 Inf！"
+        print("  ✅ 无 NaN/Inf 数值异常")
+
+        # Test 3: 相对位置编码验证
+        print("\n【Test 3】相对位置编码验证")
+        # 验证不同位置的输出确实不同（说明位置信息被编码）
+        pos0 = xq_out[:, 0, :, :]
+        pos1 = xq_out[:, 1, :, :]
+        assert not torch.allclose(pos0, pos1, rtol=1e-3), "不同位置的输出相同，位置编码失败！"
+        print("  ✅ 位置编码生效（不同位置输出不同）")
+
+        # Test 4: 精度稳定性测试
+        print("\n【Test 4】精度稳定性测试")
+        xq_fp16 = torch.randn(1, 8, 2, head_dim, dtype=torch.float16)
+        xk_fp16 = torch.randn(1, 8, 2, head_dim, dtype=torch.float16)
+        freqs_fp16 = precompute_freqs_cis(head_dim, 8)
+
+        xq_out_fp16, xk_out_fp16 = apply_rotary_emb(xq_fp16, xk_fp16, freqs_fp16)
+
+        assert xq_out_fp16.dtype == torch.float16, "输出类型错误！"
+        assert not torch.isnan(xq_out_fp16).any(), "FP16 输入导致 NaN！"
+        print("  ✅ FP16 输入处理正确")
+        print("  ✅ 精度提升机制工作正常")
+
+        print("\n" + "=" * 60)
+        print("🔥 RoPE 算子实现通过测试。")
+        print("   所有测试用例均已通过")
+        print("=" * 60)
+
     except NotImplementedError:
-        print("请先完成 TODO 部分的代码！")
+        print("\n❌ 测试失败: 请先完成 TODO 部分的代码！")
     except TypeError as e:
-        print("代码可能还未填完，导致返回 None")
-    except Exception as e:
+        print(f"\n❌ 测试失败: 代码可能未完成")
+    except AssertionError as e:
         print(f"\n❌ 测试失败: {e}")
+    except Exception as e:
+        print(f"\n❌ 发生未知异常: {type(e).__name__}: {e}")
 
 test_rope()
 
@@ -137,10 +179,13 @@ test_rope()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-RoPE (旋转位置编码) 巧妙地将位置信息注入到内积操作中。实现的核心在于利用 PyTorch 的复数数据类型。先将倒数维切成两半作为实部和虚部 (通过 reshape(-1, 2) 和 view_as_complex)，然后通过 torch.polar 构造指数复数 ^{i\theta}$。完成复数乘法旋转后，再用 view_as_real 和 flatten(3) 转回实数张量。
+## 参考代码与解析
+
+### 代码
 
 ```python
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
+    # TODO 1: 计算逆频率并生成复数张量
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
     t = torch.arange(end, device=freqs.device, dtype=torch.float32)
     freqs = torch.outer(t, freqs)
@@ -157,13 +202,47 @@ def apply_rotary_emb(
     xk: torch.Tensor,
     freqs_cis: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    # TODO 2: 转换为复数张量（注意精度提升）
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
     
     freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
     
+    # TODO 3: 复数乘法并转回实数
     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
     
     return xq_out.type_as(xq), xk_out.type_as(xk)
 ```
+
+### 解析
+
+**1. TODO 1 (预计算旋转频率与极坐标复数生成)**
+
+- **逆频率计算：** 使用公式 $\Theta = 10000^{-2i/d}$ 计算每个维度的旋转频率。代码中  步长为 2，对应复数的实部和虚部配对，除以  后取负指数。
+- **位置编码矩阵：** 通过  生成  的角度矩阵，其中  是位置索引 。
+- **极坐标复数：**  生成复数 ^{i\theta}$，这里  全为 1（模长）， 是预计算的角度矩阵。这是 RoPE 的核心数学表示。
+- **工程细节：** 为什么代码用  而公式是 hmtBc2i/d$？因为 PyTorch 复数将最后一维按  成对存储，步长 2 正好对应公式中的  指数。
+
+**2. TODO 2 (实数张量转复数张量与精度提升)**
+
+- **精度提升的必要性（Critical）：** 在执行  之前必须先调用  将张量提升到 FP32。这是因为复数乘法在 FP16/BF16 下极易发散或产生 NaN，导致训练崩溃。这是 RoPE 实现中最容易踩的坑，LLaMA 等开源模型的源码中都强制使用 FP32 进行旋转计算。
+- **维度重塑：**  将最后一维  拆分为 ，其中 2 对应实部和虚部。
+- **复数转换：**  将形状  的实数张量解释为复数张量 ，每两个相邻元素组成一个复数。
+
+**3. TODO 3 (复数乘法旋转与实数还原)**
+
+- **广播机制：**  将  的形状从  扩展为 ，以便与  的形状  进行广播。
+- **复数乘法：**  完成旋转操作，这是 RoPE 的核心计算。复数乘法 (c+di) = (ac-bd) + (ad+bc)i$ 自动实现了旋转矩阵的效果。
+- **实数还原：**  将复数张量转回实数表示，在最后增加一个大小为 2 的维度 。
+- **维度展平：**  将最后两个维度  合并回 ，恢复原始形状。
+- **类型恢复：**  将结果转回输入的原始精度（如 FP16），因为前面为了数值稳定性提升到了 FP32。
+
+**进阶思考：RoPE 的上下文外推 (Context Extension)**
+
+- **问题背景：** 模型在 4K 序列长度上训练，如何在推理时支持 16K 甚至 128K？直接外推会导致性能急剧下降。
+- **解决方案：** 工业界提出了多种 RoPE Scaling 技术：
+  - **线性插值 (Linear Scaling)：** 将位置索引  除以缩放因子，相当于压缩位置空间。
+  - **NTK-aware Scaling：** 动态调整基频 （如从 10000 增大到 100000），降低高频分量的旋转速度。
+  - **YaRN：** 结合低频外推和高频插值，在不同维度使用不同的缩放策略。
+- **工程实践：** LLaMA 2 使用线性插值支持 32K 上下文，Qwen 使用动态 NTK 支持 128K，这些技术使得 RoPE 成为当前大模型位置编码的事实标准。
