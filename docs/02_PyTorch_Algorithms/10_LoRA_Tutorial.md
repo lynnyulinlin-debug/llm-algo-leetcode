@@ -45,8 +45,12 @@ $$ W_{\text{merged}} = W_0 + \frac{\alpha}{r} B A $$
 ```python
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
+```
 
+
+```python
 class LoRALinear(nn.Module):
     def __init__(self, in_features: int, out_features: int, r: int = 8, lora_alpha: int = 16):
         super().__init__()
@@ -55,50 +59,50 @@ class LoRALinear(nn.Module):
         self.scaling = self.lora_alpha / self.r
         
         # ==========================================
-        # TODO 1: 定义原有的 linear 层，并将其参数冻结 (requires_grad = False)
-        # 提示: 使用 nn.Linear，不需要 bias
+        # TODO 1: 初始化主权重和 LoRA 矩阵
+        # 1. 创建标准的 nn.Linear 层（无偏置）
+        # 2. 冻结主权重（设置 requires_grad = False）
+        # 3. 创建 lora_A 和 lora_B 参数（使用 nn.Parameter）
+        # 提示: lora_A 形状为 [r, in_features]，lora_B 形状为 [out_features, r]
         # ==========================================
         # self.linear = ???
-        # ???
-        
-        # ==========================================
-        # TODO 2: 定义 lora_A 和 lora_B 为 Parameter
-        # 注意: lora_A 的形状是 [r, in_features]，lora_B 是 [out_features, r]
-        # ==========================================
-        # self.lora_A = nn.Parameter(???)
-        # self.lora_B = nn.Parameter(???)
+        # self.linear.weight.requires_grad = ???
+        # self.lora_A = ???
+        # self.lora_B = ???
         
         self.reset_parameters()
 
     def reset_parameters(self):
-        # 原版 Linear 的初始化
-        nn.init.kaiming_uniform_(self.linear.weight, a=math.sqrt(5))
-        
         # ==========================================
-        # TODO 3: 初始化 lora_A (使用 Kaiming 均匀分布) 和 lora_B (初始化为全 0)
+        # TODO 2: 初始化权重
+        # 1. 使用 Kaiming 初始化主权重
+        # 2. 使用 Kaiming 初始化 lora_A
+        # 3. 将 lora_B 初始化为全 0（确保初始时 ΔW = 0）
         # ==========================================
-        # ???
-        # ???
+        # nn.init.kaiming_uniform_(???)
+        # nn.init.kaiming_uniform_(???)
+        # nn.init.zeros_(???)
         pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # ==========================================
-        # TODO 4: 实现带有旁路注入的前向传播
-        # 公式: output = W_0(x) + scaling * (B @ (A @ x^T))^T
-        # 提示: 可以利用 F.linear(x, weight) 或者直接用线性代数乘法
+        # TODO 3: 实现前向传播
+        # 1. 计算主权重的输出
+        # 2. 计算 LoRA 分支的输出（先降维再升维，最后乘以缩放因子）
+        # 3. 将两者相加
+        # 提示: 注意矩阵转置和乘法顺序
         # ==========================================
         # result = ???
-        # result += ???
-        
-        # return result
+        # lora_out = ???
+        # return ???
         pass
 
     def merge_weights(self):
         # ==========================================
-        # TODO 5: 将 B * A 合并回主权重 (注意乘以 scaling factor)
-        # 提示: self.linear.weight.data += ???
+        # TODO 4: 合并权重（零延迟推理）
+        # 提示: 将 LoRA 的低秩更新合并到主权重中
         # ==========================================
-        # ???
+        # self.linear.weight.data += ???
         pass
 
 ```
@@ -128,10 +132,10 @@ def test_lora():
         
         # 3. 验证合并权重的正确性
         layer.merge_weights()
-        out_merged = layer.linear(x)  # 合并后直接调用底层的 linear
+        out_merged = layer.linear(x)
         assert torch.allclose(out_trained, out_merged, atol=1e-5), "权重合并错误: 合并后的输出与分离时的输出不一致！"
         
-        print("\n✅ All Tests Passed! 恭喜你，工业级 LoRA 核心算子实现成功！")
+        print("\n✅ All Tests Passed! LoRA 核心算子实现正确。")
         
     except NotImplementedError:
         print("请先完成 TODO 部分的代码！")
@@ -151,33 +155,84 @@ test_lora()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-低秩自适应（LoRA）是一种参数高效的微调技术，核心在于通过低秩矩阵分解来更新权重。代码中通过创建并行的降维和升维线性层，并在前向传播时按缩放因子合并结果，大幅降低了可训练参数量。
+## 参考代码与解析
+
+### 代码
+
 
 ```python
 class LoRALinear(nn.Module):
-    def __init__(self, in_features, out_features, r=8, lora_alpha=16, lora_dropout=0.0):
+    def __init__(self, in_features: int, out_features: int, r: int = 8, lora_alpha: int = 16):
         super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
         self.r = r
         self.lora_alpha = lora_alpha
         self.scaling = self.lora_alpha / self.r
-
+        
+        # TODO 1: 初始化主权重和 LoRA 矩阵
         self.linear = nn.Linear(in_features, out_features, bias=False)
         self.linear.weight.requires_grad = False
         
-        self.lora_A = nn.Linear(in_features, r, bias=False)
-        self.lora_B = nn.Linear(r, out_features, bias=False)
+        self.lora_A = nn.Parameter(torch.empty(r, in_features))
+        self.lora_B = nn.Parameter(torch.empty(out_features, r))
         
-        self.dropout = nn.Dropout(p=lora_dropout)
-        
-        nn.init.kaiming_uniform_(self.lora_A.weight, a=math.sqrt(5))
-        nn.init.zeros_(self.lora_B.weight)
+        self.reset_parameters()
 
-    def forward(self, x):
+    def reset_parameters(self):
+        # TODO 2: 初始化权重
+        nn.init.kaiming_uniform_(self.linear.weight, a=math.sqrt(5))
+        
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # TODO 3: 实现前向传播
         result = self.linear(x)
-        if self.r > 0:
-            lora_out = self.lora_B(self.lora_A(self.dropout(x)))
-            result += lora_out * self.scaling
+        lora_out = (x @ self.lora_A.T) @ self.lora_B.T * self.scaling
+        result += lora_out
         return result
+
+    def merge_weights(self):
+        # TODO 4: 合并权重（零延迟推理）
+        self.linear.weight.data += (self.lora_B @ self.lora_A) * self.scaling
+
 ```
+
+### 解析
+
+**1. TODO 1 & 2: 初始化主权重和 LoRA 矩阵**
+
+- **主权重冻结**：`self.linear.weight.requires_grad = False` 是 LoRA 的核心，确保预训练权重不参与梯度计算，只更新 A 和 B。
+- **LoRA 矩阵形状**：
+  - `lora_A`: `[r, in_features]` - 降维矩阵
+  - `lora_B`: `[out_features, r]` - 升维矩阵
+- **初始化规则**：
+  - `lora_A`: 使用 Kaiming 初始化，提供随机性
+  - `lora_B`: **必须初始化为全 0**，确保训练开始时 $\Delta W = BA = 0$，即微调模型的初始输出与预训练模型完全一致
+- **参数量对比**：原始权重 `[out_features, in_features]`，LoRA 参数 `r * (in_features + out_features)`。当 `r << min(in_features, out_features)` 时，参数量大幅减少。
+
+**2. TODO 3: 前向传播与缩放**
+
+- **实现方式**：
+  ```python
+  result = self.linear(x)
+  lora_out = (x @ self.lora_A.T) @ self.lora_B.T * self.scaling
+  result += lora_out
+  ```
+- **数学公式**：$h = W_0 x + \frac{\alpha}{r} B A x$
+- **缩放因子**：`scaling = lora_alpha / r`，通常 `lora_alpha = 16`，`r = 8`，则 `scaling = 2`。
+- **缩放的意义**：在改变秩 $r$ 时，不需要重新调整学习率。较小的 $r$ 会自动获得较大的缩放，保持更新幅度的稳定性。
+- **计算顺序**：先 `x @ A^T` 降维到 `[..., r]`，再 `@ B^T` 升维到 `[..., out_features]`，最后乘以 `scaling`。
+
+**3. TODO 4: 合并权重（零延迟推理）**
+
+- **实现方式**：`self.linear.weight.data += (self.lora_B @ self.lora_A) * self.scaling`
+- **核心原理**：由于 $h = Wx + BAx = (W + BA)x$，可以直接将 $BA$ 加到 $W$ 中。
+- **零延迟推理**：合并后，模型结构与标准 Linear 层完全相同，没有额外的矩阵乘法，推理速度与原始模型一致。
+- **部署优势**：合并后可以直接丢弃 A 和 B 矩阵，节省显存和计算。这是 LoRA 相比 Adapter 等方法的重要优势。
+- **可逆性**：如果需要，可以通过 `W - BA` 恢复原始权重，实现"即插即拔"的效果。
+
+**工程要点**
+
+- **显存节省**：7B 模型全参微调需要约 112GB 显存（参数 + 梯度 + 优化器状态），LoRA (r=8) 只需约 14GB。
+- **多任务切换**：可以为不同任务训练不同的 A/B 矩阵，推理时动态加载，实现"一个基座模型 + 多个 LoRA 适配器"。
+- **秩的选择**：`r=8` 通常足够，`r=16` 可能带来边际提升，`r=32` 以上收益递减。
