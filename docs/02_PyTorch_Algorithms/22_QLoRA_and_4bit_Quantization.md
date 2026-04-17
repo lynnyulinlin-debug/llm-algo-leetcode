@@ -21,7 +21,7 @@ QLoRA 是 2023-2024 年微调界最具重要的论文。它通过引入 **4-bit 
 > 我们预先根据标准正态分布的面积，计算出 16 个分位点（Quantiles）。这 16 个值虽然在内存里用 4 个 bit 存储（代表索引 0 到 15），但它们对应的真实浮点数值是非常精确的、密度集中在 0 附近的浮点数。
 
 > **QLoRA 的训练流：**
-> 1. 基础权重 (Base Weights) 被极度压缩为 NF4 (冻结不更新)。
+> 1. 基础权重 (Base Weights) 被非常压缩为 NF4 (冻结不更新)。
 > 2. 前向传播时，读取 NF4 的索引 -> 查表得到高精度 BF16 值 -> 和输入相乘。
 > 3. 旁边挂载的 LoRA 矩阵 A 和 B 是高精度的 BF16/FP32，并且 `requires_grad=True`。
 > 4. 反向传播时，梯度从输出流向 LoRA（更新参数），也流向基础权重（但不更新它，仅仅为了传递梯度）。
@@ -41,7 +41,10 @@ QLoRA 的核心在于 NF4 数据类型。由于神经网络的权重通常服从
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+```
 
+
+```python
 def create_nf4_lookup_table() -> torch.Tensor:
     """
     创建 4-bit NormalFloat (NF4) 的查表 (共 16 个离散的浮点值)。
@@ -84,8 +87,6 @@ class QLoRALinearSim(nn.Module):
         
         # ==========================================
         # TODO 2: 分别计算基础前向和 LoRA 旁路前向
-        # base_out = x @ dequantized_base_weight.T
-        # lora_out = (x @ lora_A.T) @ lora_B.T * scaling
         # ==========================================
         # base_out = ???
         # lora_out = ???
@@ -148,25 +149,76 @@ test_qlora()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-QLoRA 将 LoRA 和 4-bit NormalFloat 权重量化结合起来，在单卡上实现了超大模型的微调。实现重点在于双重量化机制和基于分块的量化参数管理，以此打破微调大模型时的显存瓶颈。
+## 参考代码与解析
+
+### 代码
 
 ```python
-def quantize_4bit(tensor, block_size=64):
-    num_blocks = tensor.numel() // block_size
-    tensor_reshaped = tensor.view(num_blocks, block_size)
-    
-    absmax = tensor_reshaped.abs().max(dim=1, keepdim=True)[0]
-    scales = absmax / 7.0 
-    
-    quantized = torch.round(tensor_reshaped / scales).clamp(-8, 7).to(torch.int8)
-    
-    return quantized.view_as(tensor), scales
-    
-def dequantize_4bit(quantized, scales, block_size=64):
-    num_blocks = quantized.numel() // block_size
-    quantized_reshaped = quantized.view(num_blocks, block_size).float()
-    
-    dequantized = quantized_reshaped * scales
-    
-    return dequantized.view_as(quantized)
+def create_nf4_lookup_table() -> torch.Tensor:
+    """
+    创建 4-bit NormalFloat (NF4) 的查表 (共 16 个离散的浮点值)。
+    """
+    nf4_values = [
+        -1.0, -0.696, -0.525, -0.395, -0.284, -0.185, -0.091, 0.0,
+        0.080, 0.161, 0.246, 0.338, 0.441, 0.563, 0.723, 1.0
+    ]
+    return torch.tensor(nf4_values)
+
+class QLoRALinearSim(nn.Module):
+    """
+    模拟 QLoRA 的 Linear 层。
+    """
+    def __init__(self, in_features: int, out_features: int, r: int = 8, alpha: float = 16.0):
+        super().__init__()
+        
+        # 1. 冻结的低精度基础权重 (保存 0~15 的索引)
+        self.register_buffer("weight_nf4_indices", torch.randint(0, 16, (out_features, in_features), dtype=torch.int8))
+        self.register_buffer("weight_scale", torch.tensor(1.0))
+        self.register_buffer("nf4_table", create_nf4_lookup_table())
+        
+        # 2. 活跃的高精度 LoRA 适配器
+        self.lora_A = nn.Parameter(torch.randn(r, in_features) * 0.01)
+        self.lora_B = nn.Parameter(torch.zeros(out_features, r))
+        self.scaling = alpha / r
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # TODO 1: 基础权重反量化 (Dequantization)
+        # 1. 将 weight_nf4_indices 转换为长整型 (long)，以作为查表的索引
+        indices = self.weight_nf4_indices.long()
+        
+        # 2. 从 nf4_table 中取出对应的浮点数值
+        # 3. 乘以 weight_scale 恢复范围
+        dequantized_base_weight = self.nf4_table[indices] * self.weight_scale
+        
+        # TODO 2: 分别计算基础前向和 LoRA 旁路前向
+        base_out = F.linear(x, dequantized_base_weight)
+        lora_out = (x @ self.lora_A.T) @ self.lora_B.T * self.scaling
+        
+        return base_out + lora_out
 ```
+
+### 解析
+
+**1. TODO 1: 基础权重反量化**
+- **实现方式**：`indices = self.weight_nf4_indices.long()`，`dequantized_base_weight = self.nf4_table[indices] * self.weight_scale`
+- **关键点**：通过查表将 4-bit 索引（0-15）映射到 NF4 浮点值
+- **技术细节**：NF4 查表包含 16 个根据正态分布分位点设计的浮点值，密度集中在 0 附近
+
+**2. TODO 2: 分别计算基础前向和 LoRA 旁路**
+- **实现方式**：`base_out = F.linear(x, dequantized_base_weight)`，`lora_out = (x @ self.lora_A.T) @ self.lora_B.T * self.scaling`
+- **关键点**：基础权重冻结（不更新梯度），LoRA 权重可训练
+- **技术细节**：LoRA 输出需要乘以 scaling 因子（alpha / r）来平衡贡献
+
+**NF4 量化原理**
+- **标准量化问题**：INT4 均匀分布，但神经网络权重服从正态分布，导致精度浪费
+- **NF4 解决方案**：根据标准正态分布的累积分布函数（CDF）计算 16 个分位点
+- **信息密度**：在 0 附近分配更多的量化点，在尾部分配更少的点
+- **查表机制**：4-bit 索引 → NF4 浮点值 → 乘以 scale 恢复原始范围
+
+**工程优化要点**
+- **显存节省**：基础权重从 FP16（2 bytes）降至 NF4（0.5 bytes），节省 75% 显存
+- **双重量化**：对 scale 参数本身也进行量化，进一步节省显存
+- **分块量化**：每 64 或 128 个参数共享一个 scale，平衡精度和显存
+- **梯度流向**：基础权重冻结，梯度只更新 LoRA 参数，避免量化误差累积
+- **训练效率**：虽然反量化增加计算开销，但显存节省允许更大的 batch size
+- **工业实践**：QLoRA 使 33B 模型可在单张 24GB 显卡上微调，65B 模型可在单张 48GB 显卡上微调
