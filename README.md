@@ -89,6 +89,163 @@ python run_all_tests.py
 jupyter lab
 ```
 
+## 🧪 测试脚本说明
+
+本项目提供两个测试脚本，用于不同的测试场景：
+
+### 1. `run_all_tests.py` - 集成测试脚本
+
+**功能：** 执行整个notebook（包括题目区+测试区+答案区），验证notebook能否完整运行。
+
+**使用场景：**
+- ✅ PR提交前的回归测试
+- ✅ CI/CD自动化测试
+- ✅ 验证环境配置是否正确
+
+**用法：**
+```bash
+# 测试所有notebook
+python run_all_tests.py
+```
+
+**特点：**
+- 执行所有cell（包括markdown）
+- 自动跳过需要多GPU的notebook
+- 显示执行时间和状态徽章
+- 检测notebook是否包含TODO标记
+
+### 2. `test_notebook_answers.py` - 答案验证脚本
+
+**功能：** 分离提取题目区和答案区的代码，独立测试答案代码的正确性。
+
+**使用场景：**
+- ✅ 开发新教程时验证答案代码
+- ✅ 确保题目区没有泄露答案
+- ✅ 快速测试答案的正确性（无需执行整个notebook）
+
+**用法：**
+```bash
+# 测试单个notebook的答案区
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb
+
+# 测试题目区（验证没有透题，应该失败）
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode question
+
+# 同时测试题目区和答案区
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode both
+
+# 批量测试所有notebook的答案区
+python test_notebook_answers.py --all --dir 02_PyTorch_Algorithms
+
+# 批量测试并同时验证题目区和答案区
+python test_notebook_answers.py --all --dir 02_PyTorch_Algorithms --mode both
+```
+
+**特点：**
+- 只提取和执行代码cell
+- 可以单独测试答案区或题目区
+- 验证题目区没有透题（题目区应该失败）
+- 验证答案区代码正确（答案区应该通过）
+
+**预期结果：**
+- 题目区测试：❌ 失败（因为只有`pass`占位符）
+- 答案区测试：✅ 通过（完整的参考答案）
+
+### 测试脚本对比
+
+| 特性 | `run_all_tests.py` | `test_notebook_answers.py` |
+|------|-------------------|---------------------------|
+| 测试范围 | 整个notebook | 只测试代码部分 |
+| 执行方式 | 顺序执行所有cell | 提取代码后独立执行 |
+| 题目区/答案区分离 | ❌ 不支持 | ✅ 支持 |
+| 验证题目区不透题 | ❌ 不支持 | ✅ 支持 |
+| 批量测试 | ✅ 支持 | ✅ 支持 |
+| 适用场景 | CI/CD、回归测试 | 开发验证、答案质量检查 |
+
+### 推荐工作流
+
+**开发新教程时：**
+```bash
+# 1. 先用答案验证脚本测试答案区代码
+python test_notebook_answers.py new_tutorial.ipynb --mode answer
+
+# 2. 确认题目区没有透题
+python test_notebook_answers.py new_tutorial.ipynb --mode both
+
+# 3. 最后用集成测试脚本测试整个notebook
+python run_all_tests.py
+```
+
+**提交PR前：**
+```bash
+# 必须运行集成测试，确保没有破坏现有功能
+python run_all_tests.py
+```
+
+## 📝 Jupyter Notebook 标准使用方法
+
+### 基础操作
+
+**1. 执行单元格 (Cell)**
+- **方式一：** 点击单元格，然后点击顶部工具栏的 ▶️ "Run" 按钮
+- **方式二：** 选中单元格后按 `Shift + Enter`（执行并跳到下一个单元格）
+- **方式三：** 按 `Ctrl + Enter`（执行但停留在当前单元格）
+
+**2. 执行所有单元格**
+- 点击顶部菜单栏：`Run` → `Run All Cells`
+- 或点击工具栏的 ⏩ "Run All" 按钮（向右的双三角形）
+
+**3. 单元格类型**
+- **Code Cell（代码单元格）**：用于编写和执行 Python 代码
+- **Markdown Cell（文档单元格）**：用于显示说明文字、公式和图片
+
+### 推荐的刷题流程
+
+**Step 1: 按顺序阅读和执行**
+```
+1. 先执行第一个 cell（导入库）
+2. 按顺序阅读每个 Part 的说明
+3. 在 TODO 处填写你的代码
+4. 执行测试 cell 验证答案
+```
+
+**Step 2: 如果遇到错误**
+- 检查是否按顺序执行了所有前置 cell
+- 确认所有 import 语句已执行
+- 查看错误信息，定位问题所在
+
+**Step 3: 查看参考答案**
+- 向下滚动穿过 `🛑 STOP HERE 🛑` 标记
+- 查看"官方解析与参考代码"部分
+- 理解解题思路后，尝试自己重新实现
+
+### 常见问题
+
+**Q: 为什么会出现 `name 'xxx' is not defined` 错误？**
+- **原因：** 没有按顺序执行前面的 cell，导致变量或函数未定义
+- **解决：** 点击 `Run` → `Run All Cells` 重新执行整个 notebook
+
+**Q: 如何重置 notebook 状态？**
+- 点击 `Kernel` → `Restart Kernel and Clear All Outputs`
+- 然后重新按顺序执行所有 cell
+
+**Q: 修改代码后测试仍然失败？**
+- 确保修改后重新执行了该 cell（单元格左侧会显示执行序号）
+- 如果修改了函数定义，需要重新执行定义该函数的 cell
+
+### 快捷键速查
+
+| 操作 | 快捷键 |
+|------|--------|
+| 执行当前 cell 并跳到下一个 | `Shift + Enter` |
+| 执行当前 cell 不跳转 | `Ctrl + Enter` |
+| 在上方插入新 cell | `A` (命令模式) |
+| 在下方插入新 cell | `B` (命令模式) |
+| 删除当前 cell | `D + D` (命令模式) |
+| 切换到命令模式 | `Esc` |
+| 切换到编辑模式 | `Enter` |
+| 保存 notebook | `Ctrl + S` |
+
 ## 贡献者名单
 
 | 姓名 | 职责 | 简介 |
