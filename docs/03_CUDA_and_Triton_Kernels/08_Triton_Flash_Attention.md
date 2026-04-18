@@ -50,7 +50,10 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def flash_attn_fwd_kernel(
     Q_ptr, K_ptr, V_ptr, sm_scale,
