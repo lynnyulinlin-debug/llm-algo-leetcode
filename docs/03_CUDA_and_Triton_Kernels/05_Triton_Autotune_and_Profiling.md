@@ -39,21 +39,18 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 # ==========================================
 # TODO 1: 添加 triton.autotune 装饰器
-# 提示: 提供一个 configs 列表，包含多个 triton.Config({'BLOCK_SIZE': 1024}, num_warps=4) 等组合
-# 目标是让编译器在运行时找出对于当前 N 最好的 BLOCK_SIZE 和 num_warps
+# 提示: 
+# 1. 使用 @triton.autotune 装饰器
+# 2. 提供 configs 列表，包含至少 3 个不同的 triton.Config 配置 (探索不同的 BLOCK_SIZE 和 num_warps 组合)
+# 3. 设置 key 为 ['n_elements']，以便对不同的输入大小缓存最优配置
 # ==========================================
-@triton.autotune(
-    configs=[
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=4),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=8),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=8),
-        triton.Config({'BLOCK_SIZE': 8192}, num_warps=16),
-    ],
-    key=['n_elements'], # 当 n_elements 发生显著变化时重新 autotune
-)
+# @triton.autotune(???)
 @triton.jit
 def vector_add_autotune_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(axis=0)
@@ -68,9 +65,15 @@ def vector_add_autotune_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl
 def add_triton(x: torch.Tensor, y: torch.Tensor):
     output = torch.empty_like(x)
     n_elements = output.numel()
-    # grid 使用一个 lambda 函数，利用 meta 字典获取当前自动调优选中的 BLOCK_SIZE
-    grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']), )
-    vector_add_autotune_kernel[grid](x, y, output, n_elements)
+    
+    # ==========================================
+    # TODO 2: 动态计算 grid
+    # 提示: 使用 lambda 函数接收 meta 字典，根据 meta['BLOCK_SIZE'] 计算 grid 大小
+    # ==========================================
+    # grid = ???
+    # vector_add_autotune_kernel[grid](x, y, output, n_elements)
+    pass
+    
     return output
 
 # ==========================================
@@ -99,12 +102,38 @@ def benchmark(size, provider):
     if provider == 'torch':
         ms, min_ms, max_ms = triton.testing.do_bench(lambda: x + y, quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: add_triton(x, y), quantiles=quantiles)
+        try:
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: add_triton(x, y), quantiles=quantiles)
+        except Exception as e:
+            ms, min_ms, max_ms = float('inf'), float('inf'), float('inf')
         
     # 计算带宽吞吐 (GB/s): 读取 2 个向量，写入 1 个向量
     gbps = lambda ms: 3 * x.numel() * x.element_size() / ms * 1e-6
     return gbps(ms), gbps(max_ms), gbps(min_ms)
+```
 
+
+```python
+# ==========================================
+# 验证正确性测试
+# ==========================================
+def test_autotune_correctness():
+    if not torch.cuda.is_available():
+        print("⏭️  忽略测试：无 GPU")
+        return
+    
+    print("\n--- 测试开始 ---")
+    try:
+        x = torch.randn(10000, device='cuda')
+        y = torch.randn(10000, device='cuda')
+        z = add_triton(x, y)
+        assert torch.allclose(x + y, z), "❌ Autotune 算子输出不正确"
+        print("✅ Autotune 正确性测试通过")
+    except Exception as e:
+        print(f"❌ 测试失败: {e}")
+        raise e
+
+test_autotune_correctness()
 ```
 
 
@@ -120,8 +149,6 @@ else:
     # 运行 benchmark 并打印结果 (不保存图片，直接打印 pandas dataframe 格式)
     benchmark.run(print_data=True, show_plots=False)
     print("\n✅ Autotune 和 Profiling 测试完成！")
-    print("💡 在面试中，提及使用 do_bench 替代 time.time 规避 CUDA 异步，并搜索最佳 num_warps，是极佳的加分项。")
-
 ```
 
 ---
@@ -133,21 +160,18 @@ else:
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-### 📝 Autotune 参考实现解析
+## 参考代码与解析
 
-1. **`@triton.autotune`**: 我们提供了从 `512` 到 `8192` 不同的 `BLOCK_SIZE` 配置，并相应搭配了不同的 `num_warps`。通常，更大的 Block 需要更多的 Warps 来隐藏内存延迟。
-2. **`key=['N']`**: 这是一个很重要的参数。由于每次运算的数据量 `N` 可能不同，Triton 会对每一个不同的 `N` 进行一次 Autotune 调优，并将结果缓存。如果下次遇到相同的 `N`，它会直接使用上次调优出来的最佳配置，而不必重新穷举。
-3. **消除硬编码**: 在 Python 的启动函数中，原先我们硬编码的 `BLOCK_SIZE` 被移除。`grid` 函数现在接受一个 `meta` 字典，Triton 会自动将当前尝试的配置塞入 `meta` 中，从而让启动代码变得完全动态。
+### 代码
 
 ```python
-# ==========================================
-# 💡 参考答案
-# ==========================================
-
 import torch
 import triton
 import triton.language as tl
 
+# ==========================================
+# TODO 1: 添加 triton.autotune 装饰器
+# ==========================================
 @triton.autotune(
     configs=[
         triton.Config({'BLOCK_SIZE': 512}, num_warps=2),
@@ -156,33 +180,57 @@ import triton.language as tl
         triton.Config({'BLOCK_SIZE': 4096}, num_warps=8),
         triton.Config({'BLOCK_SIZE': 8192}, num_warps=16),
     ],
-    key=['N'],
+    key=['n_elements'],
 )
 @triton.jit
-def vector_add_kernel_autotune(
+def vector_add_autotune_kernel(
     x_ptr, y_ptr, out_ptr,
-    N,
+    n_elements,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
     block_start = pid * BLOCK_SIZE
     offsets = block_start + tl.arange(0, BLOCK_SIZE)
-    mask = offsets < N
+    mask = offsets < n_elements
     
     x = tl.load(x_ptr + offsets, mask=mask)
     y = tl.load(y_ptr + offsets, mask=mask)
     out = x + y
     tl.store(out_ptr + offsets, out, mask=mask)
 
-def triton_vector_add_autotune(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    N = x.numel()
+def add_triton(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    n_elements = x.numel()
     out = torch.empty_like(x)
     
-    grid = lambda meta: (triton.cdiv(N, meta['BLOCK_SIZE']),)
+    # ==========================================
+    # TODO 2: 动态计算 grid
+    # ==========================================
+    grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)
     
-    vector_add_kernel_autotune[grid](
-        x, y, out, N
+    vector_add_autotune_kernel[grid](
+        x, y, out, n_elements
     )
     return out
-
 ```
+
+### 解析
+
+**1. TODO 1: 添加 triton.autotune 装饰器**
+- **实现方式**：使用 `@triton.autotune` 装饰器，提供多个 `triton.Config` 配置组合
+- **关键点**：每个配置指定不同的 `BLOCK_SIZE` 和 `num_warps` 组合，让 Triton 在运行时自动选择最优配置
+- **技术细节**：
+  - `configs` 列表包含从 512 到 8192 的不同 BLOCK_SIZE，对应不同的 num_warps（2 到 16）
+  - 通常更大的 BLOCK_SIZE 需要更多的 warps 来隐藏内存延迟
+  - `key=['n_elements']` 指定 Triton 根据输入数据量 `n_elements` 进行调优缓存，相同数据量会复用已调优的最佳配置
+
+**2. TODO 2: 动态计算 grid**
+- **实现方式**：`grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)`
+- **关键点**：使用 lambda 函数接收 `meta` 字典，Triton 会自动将当前配置注入其中
+- **技术细节**：消除了硬编码的 BLOCK_SIZE，使启动代码完全动态化，autotune 可以自由尝试不同配置
+
+**工程优化要点**
+- **Autotune 原理**：Triton 在首次运行时会预热所有配置，测量每个配置的性能，并缓存最优结果。后续调用直接使用缓存的最佳配置，避免重复搜索。
+- **Profiling 最佳实践**：使用 `triton.testing.do_bench` 而非 `time.time()`，因为 CUDA 操作是异步的，`do_bench` 会正确处理 GPU 同步并返回准确的执行时间。
+- **性能指标选择**：对于 Memory Bound 算子（如向量加法），使用带宽 (GB/s) 作为评价指标；对于 Compute Bound 算子（如矩阵乘法），使用算力 (TFLOPS)。
+- **配置空间设计**：BLOCK_SIZE 通常选择 2 的幂次方（便于硬件对齐），num_warps 根据 BLOCK_SIZE 调整（更大的块需要更多并行度）。
+- **缓存键设计**：`key` 参数应包含影响性能的关键维度（如数据量、矩阵形状），确保不同场景使用合适的配置。
