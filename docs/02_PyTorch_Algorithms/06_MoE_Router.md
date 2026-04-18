@@ -24,7 +24,7 @@
 > 这样，即便总参数量有 8x7B=56B，实际每个 Token 只激活了 2x7B=14B 的参数。**计算量骤降，而知识容量剧增。**
 
 ### Step 2: 代码实现框架
-在门控网络中，我们首先计算输入对各个专家的打分矩阵（logits），然后通过 `torch.topk` 获取最大的 K 个分数及其对应的专家索引。最后对这 K 个分数应用 Softmax 进行归一化，作为专家输出的加权系数。
+在门控网络中，首先计算输入对所有专家的打分矩阵（logits）。**关键陷阱**：必须先在全维度（num_experts）上进行 Softmax 将打分转为概率分布，然后再通过 `torch.topk` 获取最大的 K 个概率及其对应的专家索引。最后，为了保证加权和仍为 1，必须对截取出的 K 个概率值进行重归一化（Re-normalize）。
 
 ###  Step 3: 核心数学机制：Top-K Routing
 
@@ -33,15 +33,19 @@
 $$ h = x W_{gate} \quad (h \in \mathbb{R}^E) $$
 其中 $E$ 是专家总数（如 8）。
 
-**2. 归一化与 Top-K 选择：**
-传统的 Softmax 会让所有专家的权重都不为 0：
-$$ p = \text{Softmax}(h) $$
-MoE 需要的是**稀疏性**，因此我们只保留得分最高的 $K$ 个专家，将其余专家的权重强制置为 0，并对保留的权重重新进行 Softmax 归一化：
-$$ p_{topk} = \text{Softmax}(\text{TopK}(h, K)) $$
+**2. 全局归一化与 Top-K 选择 (The Softmax Trap)：**
+传统初学者容易犯的错误是先选 Top-K 的 Logits，再做 Softmax。正确的工业级做法（如 Mixtral 8x7B）必须是先做全局 Softmax：
+$$ p = \text{Softmax}(h) \quad (p \in \mathbb{R}^E) $$
+为了保持稀疏性，我们提取其中概率最高的 $K$ 个专家：
+$$ p_{topk}, idx_{topk} = \text{TopK}(p, K) $$
 
-**3. 最终输出融合：**
-Token 经过这 $K$ 个专家的计算后，按权重加权求和：
-$$ y = \sum_{i \in \text{TopK}} p_i \cdot \text{Expert}_i(x) $$
+**3. 局部重归一化 (Re-normalize)：**
+由于截取了部分概率，剩下的 $K$ 个概率之和不再为 1。为了稳定梯度的尺度，必须按比例将其重新归一化：
+$$ w_i = \frac{p_i}{\sum_{j \in TopK} p_j} $$
+
+**4. 最终输出融合：**
+Token 经过这 $K$ 个专家的计算后，按最新权重加权求和：
+$$ y = \sum_{i \in TopK} w_i \cdot \text{Expert}_{idx_i}(x) $$
 
 ###  Step 4: 动手实战
 
@@ -53,7 +57,10 @@ $$ y = \sum_{i \in \text{TopK}} p_i \cdot \text{Expert}_i(x) $$
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+```
 
+
+```python
 class TopKRouter(nn.Module):
     def __init__(self, hidden_size: int, num_experts: int, top_k: int):
         super().__init__()
@@ -68,31 +75,34 @@ class TopKRouter(nn.Module):
         Args:
             hidden_states: [batch_size, seq_len, hidden_size]
         Returns:
-            routing_weights: 形状 [batch_size * seq_len, top_k]，表示选中的专家的权重
+            routing_weights: 形状 [batch_size * seq_len, top_k]，表示选中的专家的权重 (重归一化后)
             selected_experts: 形状 [batch_size * seq_len, top_k]，表示选中的专家索引
         """
         batch_size, seq_len, hidden_size = hidden_states.shape
-        # 将张量展平，把所有的 Token 一视同仁地排队
-        # 形状: [batch_size * seq_len, hidden_size]
+        # 展平输入
         hidden_states = hidden_states.view(-1, hidden_size)
         
-        # 1. 计算每个 token 对于每个专家的原始 logits 得分
-        # 形状: [batch_size * seq_len, num_experts]
+        # 1. 计算 logits 得分
         router_logits = self.gate(hidden_states)
         
         # ==========================================
-        # TODO 1: 选出得分最高的 Top-K 个专家的值 (routing_weights) 和索引 (selected_experts)
-        # 提示: 使用 torch.topk 函数，在最后一维上操作
+        # TODO 1: 对全量 Logits 进行 Softmax 获取所有专家的概率分布
+        # 提示: 强制使用 FP32 以防止精度溢出 (router_logits.float())
+        # ==========================================
+        # routing_probs = ???
+        
+        # ==========================================
+        # TODO 2: 从概率分布中截取 Top-K 最大的概率 (routing_weights) 及其索引 (selected_experts)
         # ==========================================
         # routing_weights, selected_experts = ???
         
         # ==========================================
-        # TODO 2: 对选中的 Top-K 权重进行 Softmax 归一化
-        # 提示: 让这 K 个专家的权重加起来等于 1
+        # TODO 3: 对截取后的 routing_weights 进行重归一化 (Re-normalize)
+        # 提示: 让这 K 个专家的概率按比例放大，使其加和等于 1
         # ==========================================
         # routing_weights = ???
         
-        # (通常我们需要转换为 FP32 来保证精度的稳定性)
+        # 恢复到原始数据类型
         routing_weights = routing_weights.to(hidden_states.dtype)
         
         return routing_weights, selected_experts
@@ -102,45 +112,28 @@ class SparseMoEBlock(nn.Module):
     def __init__(self, hidden_size: int, num_experts: int, top_k: int):
         super().__init__()
         self.router = TopKRouter(hidden_size, num_experts, top_k)
-        # 这里用极简的 Linear 模拟 Expert (真实的 Expert 可能是 SwiGLU MLP)
+        # 极简模拟 Expert (真实的 Expert 通常是 SwiGLU MLP)
         self.experts = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for _ in range(num_experts)])
         
     def forward(self, hidden_states: torch.Tensor):
         batch_size, seq_len, hidden_size = hidden_states.shape
-        
-        # 获取路由权重和索引
         routing_weights, selected_experts = self.router(hidden_states)
         
-        # 准备一个空张量存放最终输出
         final_hidden_states = torch.zeros(
             (batch_size * seq_len, hidden_size), 
             dtype=hidden_states.dtype, 
             device=hidden_states.device
         )
-        
-        # 展平输入
         flat_hidden_states = hidden_states.view(-1, hidden_size)
         
-        # 遍历所有被选中的 expert
-        # 注意：工业界 (如 vLLM/Megatron) 会通过高效的索引排序或 Triton 算子，
-        # 将去往同一个专家的 token 汇聚成一个批次一次性计算。
-        # 这里为了便于理解核心逻辑，我们使用 for 循环遍历每一个 Token 选择的专家
-        
+        # 工业界(vLLM/Megatron)会通过 Token Sorting (索引排序) 汇聚同专家的Token，
+        # 这里为便于理解核心算法逻辑，使用 For 循环遍历被选中的 Expert
         for expert_idx, expert in enumerate(self.experts):
-            # 找到哪些 token (在 top_k 的哪个位置) 选择了当前这个专家
-            # selected_experts 形状: [num_tokens, top_k]
             token_idx, kth_expert = torch.where(selected_experts == expert_idx)
-            
             if token_idx.shape[0] > 0:
-                # 把这些 token 抽出来送进专家计算
                 current_state = flat_hidden_states[token_idx]
                 current_output = expert(current_state)
-                
-                # 乘以该专家对应的路由权重
-                # routing_weights[token_idx, kth_expert] 获取了一维的权重列表，需要 unsqueeze 适配形状
                 current_weight = routing_weights[token_idx, kth_expert].unsqueeze(-1)
-                
-                # 累加到最终结果里
                 final_hidden_states[token_idx] += current_output * current_weight
                 
         return final_hidden_states.view(batch_size, seq_len, hidden_size)
@@ -163,19 +156,18 @@ def test_moe_router():
         out = moe(x)
         assert out.shape == x.shape, "MoE 聚合后的输出形状不匹配！"
         
-        # 2. 验证 Router 行为 (只提取路由函数单独测)
+        # 2. 验证 Router 行为
         weights, indices = moe.router(x)
-        
         assert weights.shape == (batch_size * seq_len, top_k), "权重形状不等于 [num_tokens, top_k]！"
         assert indices.shape == (batch_size * seq_len, top_k), "索引形状不等于 [num_tokens, top_k]！"
         
-        # 验证 Top-K Softmax 归一化是否正确 (每一行的和应非常接近 1)
-        assert torch.allclose(weights.sum(dim=-1), torch.ones(batch_size * seq_len)), "Top-K 权重之和不等于 1，Softmax 归一化失败！"
+        # 验证重归一化是否正确 (每一行的和应非常接近 1)
+        assert torch.allclose(weights.sum(dim=-1), torch.ones(batch_size * seq_len, dtype=weights.dtype)), "重归一化失败：Top-K 权重之和不等于 1！"
         
-        # 3. 验证专家索引是否合法
+        # 3. 验证专家索引合法性
         assert torch.all((indices >= 0) & (indices < num_experts)), "挑选的专家索引越界！"
         
-        print("\n✅ All Tests Passed! 恭喜你，最前沿的 MoE Top-K Router 和稀疏聚合逻辑已被你攻克！")
+        print("\n✅ All Tests Passed! MoE Top-K Router 和稀疏聚合逻辑验证通过。")
         
     except NotImplementedError:
         print("请先完成 TODO 部分的代码！")
@@ -199,7 +191,9 @@ test_moe_router()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-混合专家模型（MoE）的灵魂在于稀疏路由机制。输入特征首先通过一个门控全连接层映射到所有专家的得分。接着利用 torch.topk 选取得分最高的 K 个专家（保留分数与索引），对这 K 个分数做局部 Softmax 归一化。在聚合阶段，不同于常规稠密计算，只有被选中的专家才会对特定 Token 的计算进行加权求和，从而以极小的激活参数量扩展了模型的总容量。
+## 参考代码与解析
+
+### 代码
 
 ```python
 class TopKRouter(nn.Module):
@@ -215,9 +209,71 @@ class TopKRouter(nn.Module):
         
         router_logits = self.gate(hidden_states)
         
-        routing_weights, selected_experts = torch.topk(router_logits, self.top_k, dim=-1)
-        routing_weights = F.softmax(routing_weights, dim=-1)
-        routing_weights = routing_weights.to(hidden_states.dtype)
+        # TODO 1: 全局 Softmax 转换为概率分布
+        routing_probs = F.softmax(router_logits.float(), dim=-1)
         
+        # TODO 2: 截取概率最大的 Top-K 专家
+        routing_weights, selected_experts = torch.topk(routing_probs, self.top_k, dim=-1)
+        
+        # TODO 3: 重归一化
+        routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+        
+        routing_weights = routing_weights.to(hidden_states.dtype)
         return routing_weights, selected_experts
+
+class SparseMoEBlock(nn.Module):
+    def __init__(self, hidden_size: int, num_experts: int, top_k: int):
+        super().__init__()
+        self.router = TopKRouter(hidden_size, num_experts, top_k)
+        self.experts = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for _ in range(num_experts)])
+        
+    def forward(self, hidden_states: torch.Tensor):
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        routing_weights, selected_experts = self.router(hidden_states)
+        
+        final_hidden_states = torch.zeros(
+            (batch_size * seq_len, hidden_size), 
+            dtype=hidden_states.dtype, 
+            device=hidden_states.device
+        )
+        flat_hidden_states = hidden_states.view(-1, hidden_size)
+        
+        for expert_idx, expert in enumerate(self.experts):
+            token_idx, kth_expert = torch.where(selected_experts == expert_idx)
+            if token_idx.shape[0] > 0:
+                current_state = flat_hidden_states[token_idx]
+                current_output = expert(current_state)
+                current_weight = routing_weights[token_idx, kth_expert].unsqueeze(-1)
+                final_hidden_states[token_idx] += current_output * current_weight
+                
+        return final_hidden_states.view(batch_size, seq_len, hidden_size)
+
 ```
+
+### 解析
+
+**1. TODO 1: 全局 Softmax 转换**
+
+- **实现方式**：`routing_probs = F.softmax(router_logits.float(), dim=-1)`
+- **关键点**：必须在全维度（`num_experts`）上进行 Softmax，将原始打分转换为概率分布。
+- **精度控制**：强制使用 `.float()` 转为 FP32 精度，防止 FP16/BF16 下的数值溢出。Softmax 对数值精度极其敏感，低精度会导致概率分布崩塌。
+- **核心陷阱**：新手容易犯的错误是先截取 Top-K 的 Logits 再做 Softmax（局部归一化），这会失去全局相对置信度。正确做法是先全局 Softmax，再截取 Top-K 概率。
+
+**2. TODO 2: Top-K 截取**
+
+- **实现方式**：`routing_weights, selected_experts = torch.topk(routing_probs, self.top_k, dim=-1)`
+- **关键点**：从全局概率分布中提取最大的 K 个概率值及其对应的专家索引。
+- **本质区别**：这里截取的是**概率**而非原始 logits，这是与错误做法的核心差异。
+- **工业实践**：Mixtral 8x7B、DeepSeek 等主流 MoE 模型均采用此方法。
+
+**3. TODO 3: 重归一化**
+
+- **实现方式**：`routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)`
+- **必要性**：截取后的 K 个概率之和不再为 1，需要按比例放大使其重新归一化，以稳定梯度的尺度。
+- **技术细节**：`keepdim=True` 保持维度以支持广播除法。
+- **数学原理**：根据均值不等式，当所有专家的 $f_i = P_i = 1/E$ 时（完全均匀），损失最小。
+
+**工程优化要点**
+
+- **稀疏激活的本质**：MoE 的核心价值在于"大容量、低激活"。通过 Top-K 路由，每个 Token 只激活少数专家（通常 K=2），使得 56B 参数的模型实际计算量仅相当于 14B 的稠密模型。
+- **高效聚合**：代码中的 `SparseMoEBlock` 使用 For 循环遍历专家是为了便于理解。工业界框架（vLLM、Megatron-LM）会使用 Token Sorting（按专家索引排序）将去往同一专家的 Token 汇聚成批次，一次性计算以提升 GPU 利用率。
