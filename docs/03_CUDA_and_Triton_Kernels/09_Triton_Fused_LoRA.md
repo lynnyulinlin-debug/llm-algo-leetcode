@@ -49,7 +49,10 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def fused_multi_lora_kernel(
     x_ptr, out_ptr, 
