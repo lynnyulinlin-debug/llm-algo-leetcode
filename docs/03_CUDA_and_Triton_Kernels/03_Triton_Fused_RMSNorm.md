@@ -194,7 +194,7 @@ def test_triton_rmsnorm():
         
         print("正在运行 Benchmark，请稍候...")
         benchmark.run(print_data=True, show_plots=False)
-        print("\n✅ All Tests Passed! 恭喜你，工业级 Triton 加速算子开发成功！")
+        print("\n✅ 所有测试通过！Triton算子实现正确且性能优于PyTorch原生实现。")
         
     except NotImplementedError:
         print("请先完成 TODO 部分的代码！")
@@ -218,14 +218,8 @@ test_triton_rmsnorm()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-### 📝 RMSNorm 参考实现解析
-
-1. **并行策略**: 按行 (Row) 分配给不同的 Triton Block。`M` 行启动 `M` 个 Block。
-2. **加载数据**: 使用 `x.to(tl.float32)` 将可能为 FP16/BF16 的数据转成 FP32，**这极其重要，因为平方求和在 FP16 下极易溢出。**
-3. **计算 RMS**: 
-   - 使用 `tl.sum` 求整行的平方和。
-   - `tl.math.rsqrt` 用于计算平方根的倒数（即 $1/\sqrt{x}$），这比先开方再除法在硬件指令上更快。
-4. **输出**: 将计算完的 `y` 强转回原本的 `dtype`（如 FP16）并利用 `tl.store` 写回显存。
+## 参考代码与解析
+### 代码
 
 ```python
 # ==========================================
@@ -237,28 +231,28 @@ import triton
 import triton.language as tl
 
 @triton.jit
-def _rmsnorm_kernel(
-    x_ptr, y_ptr, w_ptr,
+def _rmsnorm_fwd_fused(
+    X_ptr, Y_ptr, W_ptr,
     stride_x_row, stride_y_row,
     N, eps,
-    BLOCK_N: tl.constexpr
+    BLOCK_SIZE: tl.constexpr
 ):
     # 1. 定位当前行
     row_idx = tl.program_id(0)
-    x_row_start_ptr = x_ptr + row_idx * stride_x_row
-    y_row_start_ptr = y_ptr + row_idx * stride_y_row
+    x_row_start_ptr = X_ptr + row_idx * stride_x_row
+    y_row_start_ptr = Y_ptr + row_idx * stride_y_row
     
-    col_offsets = tl.arange(0, BLOCK_N)
+    col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < N
     
     # ==========================================
-    # 1. 从显存加载数据到 SRAM
+    # TODO 1: 从显存加载数据到 SRAM
     # ==========================================
     x = tl.load(x_row_start_ptr + col_offsets, mask=mask, other=0.0)
-    w = tl.load(w_ptr + col_offsets, mask=mask, other=0.0)
+    w = tl.load(W_ptr + col_offsets, mask=mask, other=0.0)
     
     # ==========================================
-    # 2. 计算均方根倒数 (rsqrt)
+    # TODO 2: 计算均方根倒数 (rsqrt)
     # 关键：转为 float32 累加防止溢出
     # ==========================================
     x_f32 = x.to(tl.float32)
@@ -267,28 +261,70 @@ def _rmsnorm_kernel(
     rsqrt = tl.math.rsqrt((sum_sq / N) + eps)
     
     # ==========================================
-    # 3. 归一化并乘权重，转回原类型后写入显存
+    # TODO 3: 归一化并乘权重，转回原类型后写入显存
     # ==========================================
     y = x_f32 * rsqrt * w
     y_out = y.to(x.dtype)
     tl.store(y_row_start_ptr + col_offsets, y_out, mask=mask)
 
-def triton_rmsnorm(x, weight, eps=1e-5):
-    M, N = x.shape
+def triton_rmsnorm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6):
+    # 确保输入是连续的
+    x = x.contiguous()
     y = torch.empty_like(x)
     
-    # 选择 BLOCK_N (N 的下一个 2 的幂)
-    BLOCK_N = triton.next_power_of_2(N)
+    # 展平前 N-1 维，将矩阵视为 [M, N]
+    M = x.numel() // x.shape[-1]
+    N = x.shape[-1]
     
-    # grid 维度设置：M 行，启动 M 个 block
-    grid = (M,)
+    # 寻找大于 N 的最小的 2 的幂作为 BLOCK_SIZE
+    MAX_FUSED_SIZE = 65536
+    BLOCK_SIZE = triton.next_power_of_2(N)
+    assert BLOCK_SIZE <= MAX_FUSED_SIZE, "特征维度过大，请使用分块计算版本！"
     
-    _rmsnorm_kernel[grid](
+    # 启动 Triton Kernel
+    grid = (M,)  # 分配 M 个线程块，每个处理一行
+    _rmsnorm_fwd_fused[grid](
         x, y, weight,
-        x.stride(0), y.stride(0),
+        x.stride(0) if x.ndim > 1 else 0,
+        y.stride(0) if y.ndim > 1 else 0,
         N, eps,
-        BLOCK_N=BLOCK_N,
+        BLOCK_SIZE=BLOCK_SIZE,
     )
     return y
 
 ```
+
+### 解析
+
+**1. TODO 1: 从显存加载数据到SRAM**
+- **实现方式**：使用 `tl.load` 加载输入数据和权重到片上内存
+- **关键点**：使用mask防止越界访问，other=0.0填充越界位置
+- **技术细节**：
+  - `x = tl.load(x_row_start_ptr + col_offsets, mask=mask, other=0.0)` 加载当前行的输入数据
+  - `w = tl.load(W_ptr + col_offsets, mask=mask, other=0.0)` 加载权重向量
+  - mask机制确保当N不是2的幂时，不会读取越界内存
+
+**2. TODO 2: 计算均方根倒数**
+- **实现方式**：先转float32防溢出，再平方求和，最后计算rsqrt
+- **关键点**：必须转为float32进行累加，FP16极易溢出
+- **技术细节**：
+  - `x_f32 = x.to(tl.float32)` 将输入转为float32，FP16范围仅为±65504，平方后极易溢出
+  - `x_sq = x_f32 * x_f32` 计算平方
+  - `sum_sq = tl.sum(x_sq, axis=0)` 在SRAM内高效求和（归约操作）
+  - `rsqrt = tl.math.rsqrt((sum_sq / N) + eps)` 计算 $\frac{1}{\sqrt{\text{mean}(x^2) + \epsilon}}$
+  - `tl.math.rsqrt` 比先sqrt再除法在硬件指令层面更高效
+
+**3. TODO 3: 归一化并写回显存**
+- **实现方式**：乘以rsqrt和权重，转回原dtype后写入HBM
+- **关键点**：转回原dtype节省显存带宽
+- **技术细节**：
+  - `y = x_f32 * rsqrt * w` 在float32精度下完成归一化和缩放
+  - `y_out = y.to(x.dtype)` 转回原始数据类型（通常是FP16），节省写回带宽
+  - `tl.store(y_row_start_ptr + col_offsets, y_out, mask=mask)` 写回显存，mask保护防止越界写入
+
+**工程优化要点**
+- **BLOCK_SIZE选择策略**：使用 `triton.next_power_of_2(N)` 确保块大小为2的幂（Triton要求），最大支持65536。超过此限制需要使用分块计算版本
+- **类型转换策略**：计算过程使用FP32防止溢出和精度损失，存储使用FP16节省显存带宽（2倍带宽优势）
+- **内存访问模式优化**：一次性将整行数据读入SRAM，在片上完成所有计算，最后一次性写回HBM。相比PyTorch原生实现的多次HBM读写，显著降低了内存带宽瓶颈
+- **并行策略**：按行（Token）并行，每个program处理一行特征向量。适合大batch场景（如训练时batch_size × seq_len可达数千到数万行）
+- **归约优化**：`tl.sum` 在SRAM内利用warp-level原语高效完成归约，避免全局同步开销
