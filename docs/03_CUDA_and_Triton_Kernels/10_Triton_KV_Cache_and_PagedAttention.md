@@ -51,7 +51,10 @@ import torch
 import triton
 import triton.language as tl
 import math
+```
 
+
+```python
 @triton.jit
 def paged_attention_decoding_kernel(
     out_ptr, q_ptr, k_cache_ptr, v_cache_ptr,
