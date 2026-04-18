@@ -89,97 +89,22 @@ python run_all_tests.py
 jupyter lab
 ```
 
-## 🧪 测试脚本说明
+## 🧪 测试与验证脚本说明
 
-本项目提供两个测试脚本，用于不同的测试场景：
+为了保证大模型底层算法的严谨性，本项目提供了专业的自动化测试和防透题验证脚本。详细的使用场景、执行原理和开发工作流，请查阅独立的指南文档：
 
-### 1. `run_all_tests.py` - 集成测试脚本
+👉 **[自动化测试与验证脚本指南](./project_test_scripts.md)**
 
-**功能：** 执行整个notebook（包括题目区+测试区+答案区），验证notebook能否完整运行。
-
-**使用场景：**
-- ✅ PR提交前的回归测试
-- ✅ CI/CD自动化测试
-- ✅ 验证环境配置是否正确
-
-**用法：**
+简要命令速查：
 ```bash
-# 测试所有notebook
+# 集成测试：执行整个 notebook（提交 PR 前必跑）
 python run_all_tests.py
-```
 
-**特点：**
-- 执行所有cell（包括markdown）
-- 自动跳过需要多GPU的notebook
-- 显示执行时间和状态徽章
-- 检测notebook是否包含TODO标记
+# 答案单元测试：仅抽离测试官方答案代码是否正确
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode answer
 
-### 2. `test_notebook_answers.py` - 答案验证脚本
-
-**功能：** 分离提取题目区和答案区的代码，独立测试答案代码的正确性。
-
-**使用场景：**
-- ✅ 开发新教程时验证答案代码
-- ✅ 确保题目区没有泄露答案
-- ✅ 快速测试答案的正确性（无需执行整个notebook）
-
-**用法：**
-```bash
-# 测试单个notebook的答案区
-python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb
-
-# 测试题目区（验证没有透题，应该失败）
+# 防透题测试：验证学生区代码是否按预期报错拦截
 python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode question
-
-# 同时测试题目区和答案区
-python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode both
-
-# 批量测试所有notebook的答案区
-python test_notebook_answers.py --all --dir 02_PyTorch_Algorithms
-
-# 批量测试并同时验证题目区和答案区
-python test_notebook_answers.py --all --dir 02_PyTorch_Algorithms --mode both
-```
-
-**特点：**
-- 只提取和执行代码cell
-- 可以单独测试答案区或题目区
-- 验证题目区没有透题（题目区应该失败）
-- 验证答案区代码正确（答案区应该通过）
-
-**预期结果：**
-- 题目区测试：❌ 失败（因为只有`pass`占位符）
-- 答案区测试：✅ 通过（完整的参考答案）
-
-### 测试脚本对比
-
-| 特性 | `run_all_tests.py` | `test_notebook_answers.py` |
-|------|-------------------|---------------------------|
-| 测试范围 | 整个notebook | 只测试代码部分 |
-| 执行方式 | 顺序执行所有cell | 提取代码后独立执行 |
-| 题目区/答案区分离 | ❌ 不支持 | ✅ 支持 |
-| 验证题目区不透题 | ❌ 不支持 | ✅ 支持 |
-| 批量测试 | ✅ 支持 | ✅ 支持 |
-| 适用场景 | CI/CD、回归测试 | 开发验证、答案质量检查 |
-
-### 推荐工作流
-
-**开发新教程时：**
-```bash
-# 1. 先用答案验证脚本测试答案区代码
-python test_notebook_answers.py new_tutorial.ipynb --mode answer
-
-# 2. 确认题目区没有透题
-python test_notebook_answers.py new_tutorial.ipynb --mode both
-
-# 3. 最后用集成测试脚本测试整个notebook
-python run_all_tests.py
-```
-
-**提交PR前：**
-```bash
-# 必须运行集成测试，确保没有破坏现有功能
-python run_all_tests.py
 ```
 
 ## 📝 Jupyter Notebook 标准使用方法

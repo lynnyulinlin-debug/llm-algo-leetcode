@@ -45,14 +45,12 @@ import triton.language as tl
 ```python
 # ==========================================
 # TODO 1: 添加 triton.autotune 装饰器
-# 提示: 提供 configs 列表，包含多个 triton.Config (不同的 BLOCK_SIZE 和 num_warps 组合)
+# 提示: 
+# 1. 使用 @triton.autotune 装饰器
+# 2. 提供 configs 列表，包含至少 3 个不同的 triton.Config 配置 (探索不同的 BLOCK_SIZE 和 num_warps 组合)
+# 3. 设置 key 为 ['n_elements']，以便对不同的输入大小缓存最优配置
 # ==========================================
-# @triton.autotune(
-#     configs=[
-#         # 添加至少 3 个不同的 triton.Config 配置
-#     ],
-#     key=['n_elements'],
-# )
+# @triton.autotune(???)
 @triton.jit
 def vector_add_autotune_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(axis=0)
@@ -75,6 +73,7 @@ def add_triton(x: torch.Tensor, y: torch.Tensor):
     # grid = ???
     # vector_add_autotune_kernel[grid](x, y, output, n_elements)
     pass
+    
     return output
 
 # ==========================================
@@ -103,7 +102,10 @@ def benchmark(size, provider):
     if provider == 'torch':
         ms, min_ms, max_ms = triton.testing.do_bench(lambda: x + y, quantiles=quantiles)
     if provider == 'triton':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: add_triton(x, y), quantiles=quantiles)
+        try:
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: add_triton(x, y), quantiles=quantiles)
+        except Exception as e:
+            ms, min_ms, max_ms = float('inf'), float('inf'), float('inf')
         
     # 计算带宽吞吐 (GB/s): 读取 2 个向量，写入 1 个向量
     gbps = lambda ms: 3 * x.numel() * x.element_size() / ms * 1e-6
