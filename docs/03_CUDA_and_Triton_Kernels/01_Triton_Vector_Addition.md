@@ -122,11 +122,34 @@ def test_vector_add():
         assert torch.allclose(z_torch, z_triton), "Triton 算子输出不正确！"
         print("✅ Vector Addition (Hello World) 算子测试通过！Mask 边界处理正确！")
         
+        # 边界测试
+        print("\n--- 🧪 边界情况测试 ---")
+        
+        # 测试1: 单元素向量
+        x1 = torch.tensor([1.0], device='cuda')
+        y1 = torch.tensor([2.0], device='cuda')
+        z1 = triton_add(x1, y1)
+        assert torch.allclose(z1, torch.tensor([3.0], device='cuda')), "单元素测试失败"
+        print("✅ 单元素向量测试通过")
+        
+        # 测试2: 小向量（小于BLOCK_SIZE）
+        x2 = torch.rand(100, device='cuda')
+        y2 = torch.rand(100, device='cuda')
+        z2 = triton_add(x2, y2)
+        assert torch.allclose(x2 + y2, z2), "小向量测试失败"
+        print("✅ 小向量测试通过")
+        
+        # 测试3: 恰好对齐BLOCK_SIZE
+        x3 = torch.rand(1024, device='cuda')
+        y3 = torch.rand(1024, device='cuda')
+        z3 = triton_add(x3, y3)
+        assert torch.allclose(x3 + y3, z3), "对齐测试失败"
+        print("✅ BLOCK_SIZE对齐测试通过")
     
         print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
         quantiles = [0.5, 0.2, 0.8]
         ms_pt, min_ms_pt, max_ms_pt = triton.testing.do_bench(lambda: x + y, quantiles=quantiles)
-        ms_tr, min_ms_tr, max_ms_tr = triton.testing.do_bench(lambda: add_triton(x, y), quantiles=quantiles)
+        ms_tr, min_ms_tr, max_ms_tr = triton.testing.do_bench(lambda: triton_add(x, y), quantiles=quantiles)
         print(f"PyTorch Time: {ms_pt:.4f} ms")
         print(f"Triton Time:  {ms_tr:.4f} ms")
         print(f"Speedup:      {ms_pt / ms_tr:.2f}x")
@@ -136,7 +159,6 @@ def test_vector_add():
         print(f"❌ 测试失败 (可能需要 CUDA 环境): {e}")
 
 test_vector_add()
-
 ```
 
 ---
@@ -149,18 +171,13 @@ test_vector_add()
 
 ---
 
-## 官方解析与参考代码
+## 参考代码与解析
 
-**解析：**
-1. **TODO 1 (Offsets)：** Triton 是基于 Block 计算的（而不是 CUDA C++ 的线程计算）。每个 `pid` 处理连续的一块数据。`tl.arange(0, BLOCK_SIZE)` 会生成一个 `[0, 1, 2, ..., BLOCK_SIZE-1]` 的向量，加上基址 `block_start`，我们就得到了当前 block 需要处理的所有元素的全局索引。
-2. **TODO 2 (Mask)：** 因为数组的总长度 `n_elements` 未必是 `BLOCK_SIZE` 的整数倍，最后一个 block 算出来的 offsets 会超出数组边界！因此需要一个布尔型掩码 `mask = offsets < n_elements` 保护内存，防止引发段错误 (Segmentation Fault)。
-3. **TODO 3 (Load)：** SRAM 读取。直接利用刚才算出来的全局指针地址 `x_ptr + offsets`，配合 `mask` 加载到片上。
-4. **TODO 4 (Compute & Store)：** Triton 自动做矢量化计算 `z = x + y`。最后使用 `tl.store` 加 `mask` 写回到 HBM。
-
+### 代码
 
 ```python
 @triton.jit
-def add_kernel_solution(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+def add_kernel(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(axis=0)
     
     # TODO 1: 计算内存偏移量
@@ -177,5 +194,34 @@ def add_kernel_solution(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexp
     # TODO 4: 计算并存回 HBM
     z = x + y
     tl.store(z_ptr + offsets, z, mask=mask)
-
 ```
+
+### 解析
+
+**1. TODO 1: 计算内存偏移量**
+- **实现方式**：`block_start = pid * BLOCK_SIZE`，`offsets = block_start + tl.arange(0, BLOCK_SIZE)`
+- **关键点**：每个Block处理连续的BLOCK_SIZE个元素，通过pid确定起始位置
+- **技术细节**：`tl.arange(0, BLOCK_SIZE)` 生成 [0, 1, ..., BLOCK_SIZE-1] 的向量，加上block_start得到全局索引
+
+**2. TODO 2: 边界保护Mask**
+- **实现方式**：`mask = offsets < n_elements`
+- **关键点**：防止最后一个Block越界访问，避免Segmentation Fault
+- **技术细节**：mask是布尔向量，标记哪些位置是合法的内存访问。当向量长度不是BLOCK_SIZE的整数倍时，最后一个Block会有部分元素超出边界
+
+**3. TODO 3: 加载数据到SRAM**
+- **实现方式**：`x = tl.load(x_ptr + offsets, mask=mask)`，`y = tl.load(y_ptr + offsets, mask=mask)`
+- **关键点**：从HBM（显存）加载数据到SRAM（片上内存），使用mask保护越界访问
+- **技术细节**：指针算术 `x_ptr + offsets` 计算每个元素的地址。Triton会自动将这个向量化的加载操作映射到GPU的内存事务
+
+**4. TODO 4: 计算并存回HBM**
+- **实现方式**：`z = x + y`，`tl.store(z_ptr + offsets, z, mask=mask)`
+- **关键点**：在SRAM中进行向量化计算，然后写回HBM
+- **技术细节**：Triton自动进行SIMD向量化，无需手动循环。`tl.store` 同样需要mask保护，确保只写入合法位置
+
+**工程优化要点**
+- **BLOCK_SIZE选择**：通常为2的幂次方（256、512、1024），需要根据GPU架构调优。过小会增加kernel启动开销，过大会降低occupancy
+- **内存访问模式**：连续访问（coalesced access）可最大化带宽利用率。本例中每个Block访问连续的内存区域，符合最佳实践
+- **Mask开销**：虽然mask增加了分支判断，但避免了越界访问的严重后果（程序崩溃）。现代GPU对predicated execution有良好支持
+- **性能对比**：简单向量加法是memory-bound操作，Triton与PyTorch性能接近，因为瓶颈在内存带宽而非计算
+- **Kernel融合**：向量加法通常不单独使用，而是与其他操作融合（kernel fusion）以减少内存往返次数
+- **工业实践**：Triton的优势在于复杂kernel的开发效率，对于简单操作如向量加法，PyTorch的优化已经足够好
