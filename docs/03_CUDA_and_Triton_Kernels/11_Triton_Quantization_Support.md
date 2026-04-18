@@ -60,7 +60,10 @@ Grid 划分为 2D：`(ceil(M/BLOCK_M), ceil(N/BLOCK_N))`，每个 Triton Program
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def w8a16_gemm_kernel(
     x_ptr, w_int8_ptr, scales_ptr, y_ptr,
