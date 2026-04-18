@@ -47,7 +47,10 @@ import torch
 import torch.nn as nn
 import triton
 import math
+```
 
+
+```python
 # ==========================================
 # 我们假设这些函数是你在前几节 (03, 07, 08, 02) 中已经写好的 Triton 封装。
 # 为了让本 Notebook 能独立运行，我们在这里提供极其简化的 dummy 实现或者直接调用。
