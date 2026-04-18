@@ -101,9 +101,10 @@ class TritonLlama3Block(nn.Module):
     def forward(self, x, cos, sin):
         # ==========================================
         # TODO 1: 使用 Triton RMSNorm 替换原生 Norm
+        # 提示: 调用 triton_rmsnorm(x, self.norm1_weight)
         # ==========================================
         # h = ???
-        h = triton_rmsnorm(x, self.norm1_weight)
+        pass
         
         # QKV 投影并变维 (batch, seq, n_heads, head_dim)
         batch_size, seq_len, _ = h.shape
@@ -113,14 +114,15 @@ class TritonLlama3Block(nn.Module):
         
         # ==========================================
         # TODO 2: 使用 Triton 融合 RoPE 处理 q 和 k
+        # 提示: 调用 triton_rope(q, k, cos, sin)
         # ==========================================
-        q, k = triton_rope(q, k, cos, sin)
+        # q, k = ???
         
         # ==========================================
         # TODO 3: 使用 Triton Flash Attention
+        # 提示: 调用 triton_flash_attn(q, k, v)
         # ==========================================
         # attn_output = ???
-        attn_output = triton_flash_attn(q, k, v)
         
         # 恢复形状并输出投影
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
@@ -128,13 +130,14 @@ class TritonLlama3Block(nn.Module):
         
         # ==========================================
         # TODO 4: MLP 部分
-        # 1. 对 h 使用 Triton RMSNorm
-        # 2. 调用 Triton Fused SwiGLU 替代繁琐的多次 Linear 读写
-        # 3. 残差连接 h + mlp_out
+        # 提示:
+        # 1. 对 h 使用 Triton RMSNorm: triton_rmsnorm(h, self.norm2_weight)
+        # 2. 调用 Triton Fused SwiGLU: triton_swiglu(normed_h, self.mlp_gate.weight, self.mlp_up.weight, self.mlp_down.weight)
+        # 3. 残差连接: out = h + mlp_out
         # ==========================================
-        normed_h = triton_rmsnorm(h, self.norm2_weight)
-        mlp_out = triton_swiglu(normed_h, self.mlp_gate.weight, self.mlp_up.weight, self.mlp_down.weight)
-        out = h + mlp_out
+        # normed_h = ???
+        # mlp_out = ???
+        # out = ???
         
         return out
 
