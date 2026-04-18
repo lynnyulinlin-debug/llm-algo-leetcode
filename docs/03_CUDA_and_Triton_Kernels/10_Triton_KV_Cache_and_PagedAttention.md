@@ -266,6 +266,7 @@ test_paged_attention()
 1. **查表获取物理索引**：首先通过 `logical_block_idx` 在 `block_tables` 中查表，得到真正的 `physical_block_idx`。
 2. **构建物理缓存指针偏移**：由于缓存存储的形状是 `[num_blocks, block_size, num_heads, head_dim]`，我们需要结合对应的 `stride` 和当前获取的 `physical_block_idx`，精确计算出所需的内存区域偏移。这让我们可以在不触发显存重排列的情况下直接访问碎片化的内存块。
 3. **计算 Attention 与 Online Softmax**：加载得到碎片的 K 和 V 块后，就直接在 SRAM 里进行注意力点积和在线 Softmax 状态聚合，将内存读写与计算完美重叠。
+### 代码
 
 ```python
 import torch
@@ -353,3 +354,7 @@ def triton_paged_attention_decode(q, k_cache, v_cache, block_tables, context_len
     )
     return out
 ```
+
+### 解析
+
+(解析内容待补充)

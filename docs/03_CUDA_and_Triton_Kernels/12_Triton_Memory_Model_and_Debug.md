@@ -170,6 +170,7 @@ except Exception as e:
 在这个调试实战中，我们修复了最常见的几个内存错误：
 1. **Stride 步长**：在物理显存中，数据总是平铺为一维的。如果我们要提取二维矩阵的第 `i` 行，绝不能只用 `ptr + i`，而必须严格遵循 `ptr + i * stride_row` 的法则。这是因为前一行的末尾到下一行的开头，相差了整整一个行的内存距离。
 2. **Mask 填充保护**：当我们计算 `offset = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)` 并进行加载时，往往最后一个 block 的有效数据达不到 `BLOCK_SIZE`。这会导致 `tl.load` 访问越界显存，不仅可能读到乱码数据，在没有定义 `other=0.0` 时更会干扰类似于 `tl.sum` 或 `tl.max` 的后续归约操作。加上 `other=0.0` 后，多出来的无效块就变得安全且不影响计算。
+### 代码
 
 ```python
 import torch
@@ -244,3 +245,7 @@ def run_debug_simulations():
     assert out_1d[0].item() == 64.0 and out_1d[1].item() == 36.0, f"Bug 2 (Mask) 未修复: 读到了脏数据，求和不正确！得到了 {out_1d}"
     print("✅ Bug 2 修复成功：正确使用了 tl.load 的 other=0.0 处理边界。")
 ```
+
+### 解析
+
+(解析内容待补充)

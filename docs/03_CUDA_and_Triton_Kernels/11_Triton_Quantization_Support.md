@@ -230,6 +230,7 @@ test_w8a16_gemm()
 1. **轻量级加载**：通过 `tl.load(w_ptrs)` 加载 INT8 格式的权重，这使得这一步的显存读取量仅为原本 FP16 的一半，极大地缓解了 Memory Bound 的瓶颈。
 2. **SRAM 内计算**：`w_int8.to(x.dtype)` 以及随后的 `w_fp16 * scales[None, :]` 这两步操作，完全发生在高速的流处理器寄存器中。虽然增加了浮点类型转换和乘法的指令开销，但在 IO 瓶颈的大模型推理场景下是完全值得的。
 3. **融合乘加**：反量化后的结果直接投入 `tl.dot(x, w_fp16)` 参与矩阵乘，从始至终没有任何反量化后的 FP16 权重数组被写回到主存。
+### 代码
 
 ```python
 import torch
@@ -307,3 +308,7 @@ def triton_w8a16_gemm(x: torch.Tensor, w_int8: torch.Tensor, scales: torch.Tenso
     )
     return y
 ```
+
+### 解析
+
+(解析内容待补充)

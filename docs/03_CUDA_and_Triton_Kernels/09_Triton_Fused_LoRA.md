@@ -227,6 +227,7 @@ b_pool_base_ptr = lora_b_pool_ptr + lora_idx * stride_b_pool
 ```
 我们将原本的 batch inference 分解到 Triton 的每一个 `program_id(0)`（代表 batch 中的一个 token），通过 `tl.load` 获取对应 token 需要使用的 LoRA 权重索引 `lora_idx`。
 然后，直接利用步长 `stride` 将内存指针跳转到 `lora_a_pool` 和 `lora_b_pool` 中对应的起始位置。这样每个计算单元就能无缝地拉取到自己需要的特有 LoRA 权重，而不需要在 PyTorch 中使用低效的 for 循环去逐个推理，实现了极高的并行度。
+### 代码
 
 ```python
 import torch
@@ -324,3 +325,7 @@ def triton_multi_lora_forward(x: torch.Tensor, lora_a_pool: torch.Tensor, lora_b
     )
     return out
 ```
+
+### 解析
+
+(解析内容待补充)

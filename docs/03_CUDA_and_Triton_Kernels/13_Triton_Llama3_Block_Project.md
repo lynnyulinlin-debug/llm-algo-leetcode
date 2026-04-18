@@ -211,6 +211,7 @@ run_end_to_end_benchmark()
 在这个综合项目中，我们将底层算子与 PyTorch 的 `nn.Module` 高层抽象完美结合：
 1. **彻底消除 PyTorch 的中间张量**：原本 PyTorch 的 `F.silu(gate) * up` 会产生极其庞大的激活张量并频繁在 HBM 中读写。我们利用 `triton_swiglu` 将激活函数和逐元素乘法全部融合，仅需要进出一次 HBM。
 2. **高度内聚的架构**：我们在 Python 层面的前向传播代码变得极其精简。`triton_rmsnorm`, `triton_rope`, `triton_flash_attn`, `triton_swiglu` 接管了所有 Memory Bound 最严重的环节，而大矩阵乘法则留给底层的 cuBLAS (通过 PyTorch Linear)。这正是业界构建如 vLLM, DeepSpeed 等高性能推理引擎的标准打法。
+### 代码
 
 ```python
 import torch
@@ -295,3 +296,7 @@ class TritonLlama3Block(nn.Module):
         
         return out
 ```
+
+### 解析
+
+(解析内容待补充)
