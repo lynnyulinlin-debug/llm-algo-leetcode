@@ -43,7 +43,10 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def fused_softmax_kernel(
     output_ptr, input_ptr, input_row_stride, output_row_stride,
