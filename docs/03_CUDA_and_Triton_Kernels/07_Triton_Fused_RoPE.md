@@ -52,7 +52,10 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def fused_rope_kernel(
     t_ptr, cos_ptr, sin_ptr,
