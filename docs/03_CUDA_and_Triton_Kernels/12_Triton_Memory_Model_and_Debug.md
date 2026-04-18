@@ -45,7 +45,10 @@ import torch
 import triton
 import triton.language as tl
 import os
+```
 
+
+```python
 # ==========================================
 # Bug 1: 忘记二维步长 (Stride)
 # 这个算子试图提取一个二维矩阵 (M, N) 的某一行，并加上一个标量。
