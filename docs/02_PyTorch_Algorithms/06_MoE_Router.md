@@ -101,6 +101,9 @@ class TopKRouter(nn.Module):
         # 提示: 让这 K 个专家的概率按比例放大，使其加和等于 1
         # ==========================================
         # routing_weights = ???
+                                                                                                    
+        routing_weights = torch.zeros((hidden_states.shape[0], self.top_k), dtype=torch.float32, device=hidden_states.device)  # 占位初始化                                                    
+        selected_experts = torch.zeros((hidden_states.shape[0], self.top_k), dtype=torch.long, device=hidden_states.device) # 占位初始化   
         
         # 恢复到原始数据类型
         routing_weights = routing_weights.to(hidden_states.dtype)
@@ -175,8 +178,10 @@ def test_moe_router():
         print(f"❌ 测试失败: {e}")
     except TypeError as e:
         print("代码可能未完成，导致变量为 NoneType。")
+        raise e  # 将错误抛给测试脚本
     except Exception as e:
         print(f"❌ 发生未知异常: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_moe_router()
 

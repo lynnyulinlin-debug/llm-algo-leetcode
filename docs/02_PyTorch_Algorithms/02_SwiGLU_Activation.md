@@ -111,9 +111,6 @@ class SwiGLU_MLP(nn.Module):
         super().__init__()
         # ==========================================
         # TODO 3: 定义工业级 SwiGLU 的投影矩阵
-        # 1. 融合的 gate_up_proj (输出维度为 2 * intermediate_size)
-        # 2. 降维的 down_proj
-        # (全部无 bias)
         # ==========================================
         # self.gate_up_proj = ???
         # self.down_proj = ???
@@ -122,9 +119,6 @@ class SwiGLU_MLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # ==========================================
         # TODO 4: 组装工业级 SwiGLU 前向传播
-        # 1. 经过融合矩阵得到 gate_up 结果
-        # 2. 使用 torch.chunk(2, dim=-1) 切分为 gate 和 up
-        # 3. 计算激活机制与降维
         # ==========================================
         # return ???
         pass

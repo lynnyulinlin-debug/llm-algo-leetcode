@@ -96,25 +96,31 @@ class CustomAttention(torch.autograd.Function):
         # TODO 1: 求 dV
         # ==========================================
         # dv = ???
+        dv = torch.zeros_like(v)  # 占位初始化
         
         # ==========================================
         # TODO 2: 求 dP
         # ==========================================
         # dp = ???
+        dp = torch.zeros_like(p)  # 占位初始化
         
         # ==========================================
         # TODO 3: 穿过 Softmax 求 dS
-        # 提示: 使用 .sum(dim=-1, keepdim=True) 计算 row_sum
         # ==========================================
         # dp_mul_p = ???
         # row_sum = ???
         # ds = ???
+        dp_mul_p = torch.zeros_like(p)  # 占位初始化
+        row_sum = torch.zeros(p.shape[:-1] + (1,), device=p.device, dtype=p.dtype)  # 占位初始化
+        ds = torch.zeros_like(p)  # 占位初始化
         
         # ==========================================
         # TODO 4: 求 dQ 和 dK (别忘了乘以 scale 缩放因子)
         # ==========================================
         # dq = ???
         # dk = ???
+        dq = torch.zeros_like(q)  # 占位初始化
+        dk = torch.zeros_like(k)  # 占位初始化
         
         return dq, dk, dv
 ```
@@ -141,7 +147,7 @@ def test_attention_backward():
         
         assert torch.allclose(custom_out, ref_out), "前向传播结果不一致！"
         
-        print("\n2. 进行黑魔法级别的梯度数值检验 (Gradcheck)...")
+        print("\n2. 进行梯度数值检验 (Gradcheck)...")
         test_passed = torch.autograd.gradcheck(CustomAttention.apply, (q, k, v), eps=1e-6, atol=1e-4)
         
         if test_passed:
@@ -151,8 +157,10 @@ def test_attention_backward():
         print("请先完成 TODO 部分的代码！")
     except AssertionError as e:
         print(f"❌ 测试失败: {e}")
+        raise e
     except Exception as e:
         print(f"❌ 发生异常 (很可能是梯度公式写错了): {e}")
+        raise e
 
 test_attention_backward()
 

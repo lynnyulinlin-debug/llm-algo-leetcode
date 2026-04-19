@@ -88,8 +88,6 @@ def flash_attention_forward_sim(q, k, v, block_size=2):
             
             # ==========================================
             # TODO 2: 计算当前块的局部最大值 m_block，并求出新的全局最大值 m_new
-            # m_block = S_ij 沿列方向的最大值 (保持维度为二维列向量)
-            # m_new = max(旧的 m_i, m_block)
             # ==========================================
             # m_block = ???
             # m_new = ???
@@ -101,17 +99,12 @@ def flash_attention_forward_sim(q, k, v, block_size=2):
             
             # ==========================================
             # TODO 4: 计算当前块的局部指数和 l_block，并更新全局指数和 l_new
-            # l_block = P_ij 沿列方向的求和 (保持维度为二维列向量)
             # ==========================================
             # l_block = ???
             # l_new = ???
             
             # ==========================================
             # TODO 5: 更新输出 O_i
-            # 但实际上我们在循环中只保存累加的分子，最后再除以 l_new。
-            # 为了简便，我们在此处每步都更新真正的归一化结果，这就需要：
-            # 去掉旧结果中隐含的 l_old 分母，乘以修正系数，加上新项，再除以全新的分母。
-            # 更简单的迭代公式是：
             # ==========================================
             # out[i:i+block_size] = ???
             
@@ -150,7 +143,7 @@ def test_flash_attention_sim():
         assert diff < 1e-5, "计算结果与标准 Attention 不一致！"
         
         print("✅ Online Softmax 与分块计算逻辑正确！")
-        print("\n🔥 FlashAttention 分块计算逻辑验证通过。")
+        print("\n FlashAttention 分块计算逻辑验证通过。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
@@ -181,7 +174,7 @@ test_flash_attention_sim()
 > - **核心创新 3：2-Stage to Ping-Pong Pipeline**。V1/V2 是两级流水线（Load -> Compute）。FA3 利用 TMA 实现了高效的软件流水线以掩盖延迟，实现了计算与访存的有效重叠。
 
 ---
-**🧠 思考题（进阶验证）**：
+** 思考题（进阶验证）**：
 在 V1 的算法中，我们在内层循环每次更新块时，都会执行 `v_block = v_block * scale1 + v_i * scale2`。这个标量乘法是跑在 CUDA Core 上的，速度很慢。
 如果我们要朝着 FlashAttention-2 的方向优化上面的纯 PyTorch 模拟代码，我们应该怎么在数学上修改这段 `Online Softmax`，使得 `v_block` 的缩放只在整个循环结束时发生一次？
 ---

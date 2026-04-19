@@ -68,6 +68,7 @@ def build_sft_data(prompt_ids: list[int], response_ids: list[int], pad_id: int =
     # pad_len = ???
     # input_ids = ???
     # labels = ???
+    labels = input_ids.copy() # 占位初始化
     
     return torch.tensor(input_ids, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
 
@@ -88,14 +89,12 @@ def compute_sft_loss(logits: torch.Tensor, labels: torch.Tensor):
     
     # ==========================================
     # TODO 4: 将 tensor 展平并计算交叉熵
-    # 提示: CrossEntropyLoss 期望的 logits 形状是 [N, C]，labels 形状是 [N]
-    # 使用 nn.CrossEntropyLoss(ignore_index=-100)
     # ==========================================
     # loss_fct = ???
     # loss = ???
     
-    # return loss
-    pass
+    loss = torch.tensor(100.0, device=logits.device) # 占位初始化
+    return loss
 
 ```
 
@@ -140,10 +139,13 @@ def test_sft_pipeline():
         print("请先完成 TODO 部分的代码！")
     except AssertionError as e:
         print(f"❌ 测试失败: {e}")
+        raise e
     except TypeError as e:
         print("代码未完成导致返回 None 错误。")
+        raise e
     except Exception as e:
         print(f"❌ 发生异常: {e}")
+        raise e
 
 test_sft_pipeline()
 

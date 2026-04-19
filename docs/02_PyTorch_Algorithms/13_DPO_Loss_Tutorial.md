@@ -80,28 +80,29 @@ def dpo_loss(
     
     # ==========================================
     # TODO 1: 计算 chosen 样本的隐式奖励分数 (Logits 差值)
-    # 提示: policy_chosen_logps - reference_chosen_logps
     # ==========================================
     # pi_logratios_chosen = ???
+    pi_logratios_chosen = torch.zeros_like(policy_chosen_logps)  # 占位初始化
     
     # ==========================================
     # TODO 2: 计算 rejected 样本的隐式奖励分数
     # ==========================================
     # pi_logratios_rejected = ???
+    pi_logratios_rejected = torch.zeros_like(policy_rejected_logps)  # 占位初始化
     
     # 乘以 beta (控制项)
+    chosen_rewards = beta * pi_logratios_chosen
+    rejected_rewards = beta * pi_logratios_rejected
     
     # ==========================================
     # TODO 3: 计算 logits 差值并放入 sigmoid 交叉熵中
-    # 目标：让 chosen 的 reward 尽可能比 rejected 的 reward 大
-    # 公式：-log(sigmoid(chosen_rewards - rejected_rewards))
-    # 提示：可以用 F.logsigmoid 保证数值稳定性
     # ==========================================
     # logits = ???
     # losses = ???
+    logits = torch.zeros_like(chosen_rewards)  # 占位初始化
+    losses = torch.zeros_like(chosen_rewards)  # 占位初始化
     
-    # return losses, chosen_rewards, rejected_rewards
-    pass
+    return losses, chosen_rewards, rejected_rewards
 
 ```
 
@@ -144,11 +145,12 @@ def test_dpo_loss():
         print("请先完成 TODO 部分的代码！")
     except TypeError as e:
         print("代码未完成，导致解包 None 错误")
+        raise e
     except Exception as e:
         print(f"\n❌ 测试失败: {e}")
+        raise e
 
 test_dpo_loss()
-
 ```
 
 ---

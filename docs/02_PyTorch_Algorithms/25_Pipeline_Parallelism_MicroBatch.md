@@ -40,6 +40,12 @@
 
 
 ```python
+import torch
+```
+
+
+```python
+
 def compute_bubble_ratio(p, m):
     """
     计算流水线并行的气泡率。

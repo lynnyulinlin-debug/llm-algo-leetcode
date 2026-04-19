@@ -70,6 +70,8 @@ class ZeRO1_Optimizer_Sim:
         # ==========================================
         # half_idx = ???
         # self.gpu_partitions = ???
+        half_idx = 1  # 占位初始化（错误实现，供测试框架捕获）
+        self.gpu_partitions = {0: [], 1: []}  # 占位初始化（错误实现，供测试框架捕获）
         
         # ==========================================
         # TODO 2: 为每个 GPU 初始化局部状态 (节省显存的核心)
@@ -77,7 +79,7 @@ class ZeRO1_Optimizer_Sim:
         # 构造一个 self.optimizer_states 字典，结构为 {gpu_id: {id(p): tensor}}
         # ==========================================
         # self.optimizer_states = ???
-        pass
+        self.optimizer_states = {0: {}, 1: {}}  # 占位初始化（错误实现，供测试框架捕获）
         
     def step(self, gradients_from_all_gpus: dict):
         """
@@ -147,15 +149,14 @@ def test_zero1_sim():
         assert torch.allclose(diff_w2, torch.full_like(diff_w2, 0.2)), "GPU 1 负责的权重更新错误！"
         
         print("✅ ZeRO-1 优化器状态切分与更新逻辑测试通过！")
-        print("🔥 ZeRO-1 优化器状态分片逻辑验证通过。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_zero1_sim()
-
 ```
 
 ### Step 4: ZeRO 家族的终极进化 (ZeRO-1 vs ZeRO-2 vs ZeRO-3)

@@ -62,9 +62,13 @@ class GemmaRMSNorm(nn.Module):
         # 注意类型转换回 x.dtype
         # ==========================================
         # output = ???
+
+        # 占位初始化（返回错误值，确保数值测试失败）                                                                                                                                 
+        output = torch.zeros_like(x)                                                                                                                                                 
+  
+        return output     
         
-        # return output
-        pass
+
 
 
 # --- Trick 2: Qwen 风格的权重绑定 ---
@@ -83,7 +87,6 @@ class QwenTieEmbeddings(nn.Module):
         # self.lm_head.weight = ???
         # ==========================================
         # ???
-        pass
         
     def forward_embed(self, input_ids):
         return self.embed_tokens(input_ids)
@@ -136,8 +139,10 @@ def test_tricks():
         print("代码未完成导致变量属性错误。")
     except AssertionError as e:
         print(f"❌ 测试失败: {e}")
+        raise e
     except Exception as e:
         print(f"❌ 发生未知异常: {e}")
+        raise e
 
 test_tricks()
 

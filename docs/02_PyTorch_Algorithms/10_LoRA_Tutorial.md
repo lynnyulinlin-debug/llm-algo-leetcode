@@ -60,29 +60,29 @@ class LoRALinear(nn.Module):
         
         # ==========================================
         # TODO 1: 初始化主权重和 LoRA 矩阵
-        # 1. 创建标准的 nn.Linear 层（无偏置）
-        # 2. 冻结主权重（设置 requires_grad = False）
-        # 3. 创建 lora_A 和 lora_B 参数（使用 nn.Parameter）
-        # 提示: lora_A 形状为 [r, in_features]，lora_B 形状为 [out_features, r]
         # ==========================================
         # self.linear = ???
         # self.linear.weight.requires_grad = ???
         # self.lora_A = ???
         # self.lora_B = ???
-        
+        self.linear = nn.Linear(in_features, out_features, bias=False)   # 占位初始化      
+        self.lora_A = nn.Parameter(torch.zeros(r, in_features))  # 占位初始化                                                                                                                 
+        self.lora_B = nn.Parameter(torch.zeros(out_features, r)) # 占位初始化    
+
         self.reset_parameters()
 
     def reset_parameters(self):
         # ==========================================
         # TODO 2: 初始化权重
-        # 1. 使用 Kaiming 初始化主权重
-        # 2. 使用 Kaiming 初始化 lora_A
-        # 3. 将 lora_B 初始化为全 0（确保初始时 ΔW = 0）
         # ==========================================
         # nn.init.kaiming_uniform_(???)
         # nn.init.kaiming_uniform_(???)
         # nn.init.zeros_(???)
-        pass
+        
+        # 占位初始化
+        nn.init.ones_(self.linear.weight)  # 占位初始化
+        nn.init.ones_(self.lora_A) # 占位初始化
+        nn.init.ones_(self.lora_B)  # 占位初始化
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # ==========================================
@@ -94,8 +94,9 @@ class LoRALinear(nn.Module):
         # ==========================================
         # result = ???
         # lora_out = ???
-        # return ???
-        pass
+
+        return torch.zeros(x.shape[0], x.shape[1], self.linear.out_features, device=x.device) # 占位初始化
+        
 
     def merge_weights(self):
         # ==========================================
@@ -103,7 +104,7 @@ class LoRALinear(nn.Module):
         # 提示: 将 LoRA 的低秩更新合并到主权重中
         # ==========================================
         # self.linear.weight.data += ???
-        pass
+        
 
 ```
 
@@ -141,6 +142,7 @@ def test_lora():
         print("请先完成 TODO 部分的代码！")
     except Exception as e:
         print(f"\n❌ 测试失败: {e}")
+        raise e
 
 test_lora()
 

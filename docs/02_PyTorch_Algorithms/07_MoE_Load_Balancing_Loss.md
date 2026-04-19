@@ -74,18 +74,11 @@ def compute_load_balancing_loss(
     
     # ==========================================
     # TODO 1: 计算 P_i（每个专家的平均路由概率得分）
-    # 提示: routing_weights 包含了每个 token 对选中专家的权重
-    # 需要统计每个专家在所有 token 上的平均权重
-    # 形状应为: [num_experts]
     # ==========================================
     # P_i = ???
     
     # ==========================================
     # TODO 2: 计算 f_i（每个专家实际分到的 Token 比例）
-    # 1. 使用 F.one_hot 把 selected_experts 变成 [batch_size_x_seq_len, top_k, num_experts] 的 0-1 矩阵
-    # 2. 统计每个专家被选中的总次数
-    # 3. 除以 (total_tokens * top_k) 得到比例
-    # 形状应为: [num_experts]
     # ==========================================
     # expert_mask = ???
     # tokens_per_expert = ???
@@ -93,12 +86,12 @@ def compute_load_balancing_loss(
     
     # ==========================================
     # TODO 3: 计算最终的 auxiliary loss
-    # 公式: alpha * num_experts * sum(f_i * P_i)
     # ==========================================
     # aux_loss = ???
-    
-    # return aux_loss
-    pass
+
+    aux_loss = torch.tensor(0.0, device=routing_weights.device)
+                                                                                                                                                                                  
+    return aux_loss
 
 ```
 
@@ -149,6 +142,10 @@ def test_aux_loss():
         print("代码未完成导致返回 None 错误。")
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e
+    except Exception as e:
+        print(f"\n❌ 发生未知异常: {type(e).__name__}: {e}")
+        raise e
 
 test_aux_loss()
 

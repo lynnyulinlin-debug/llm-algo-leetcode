@@ -100,7 +100,7 @@ def test_radix_attention():
         assert match_len_b == 0, "错误匹配！不该匹配到任何东西。"
         print("✅ 用户 B 正常 fallback，未命中缓存。")
         
-        print("\n🎉 所有测试通过！这正是 SGLang 让大模型推理首字响应（TTFT）飞升 10 倍的底层秘密！")
+        print("\n 所有测试通过！这正是 SGLang 让大模型推理首字响应飞升 10 倍的底层秘密！")
         
     except NotImplementedError:
         print("请先完成 TODO 部分的代码！")

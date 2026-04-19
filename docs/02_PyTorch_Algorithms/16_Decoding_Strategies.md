@@ -77,7 +77,6 @@ def apply_top_k(logits: torch.Tensor, top_k: int) -> torch.Tensor:
         
     # ==========================================
     # TODO 2: 实现 Top-K 截断
-    # 对于每个 batch，凡是严格小于这个 K_th value 的 logit，一律设为 -float('Inf')
     # ==========================================
     # filter_value = float('-inf')
     

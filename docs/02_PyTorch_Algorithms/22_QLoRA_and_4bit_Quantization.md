@@ -84,15 +84,19 @@ class QLoRALinearSim(nn.Module):
         # ==========================================
         # indices = ???
         # dequantized_base_weight = ???
+        indices = torch.zeros_like(self.weight_nf4_indices, dtype=torch.long)  # 占位初始化
+        dequantized_base_weight = torch.zeros_like(self.weight_nf4_indices, dtype=x.dtype)  # 占位初始化
         
         # ==========================================
         # TODO 2: 分别计算基础前向和 LoRA 旁路前向
         # ==========================================
         # base_out = ???
         # lora_out = ???
+        # 占位初始化：使用错误的维度计算确保梯度流通但结果错误
+        base_out = F.linear(x, dequantized_base_weight)  # 占位初始化：使用全零权重，结果错误
+        lora_out = (x @ self.lora_A.T) @ self.lora_B.T * (self.scaling * 0.5)  # 占位初始化： 错误的scaling因子
         
-        # return base_out + lora_out
-        pass
+        return base_out + lora_out
 
 ```
 
@@ -112,6 +116,19 @@ def test_qlora():
         out = layer(x)
         assert out.shape == (batch, seq, out_dim), "输出形状不正确！"
         
+        # 🚀 新增：验证 NF4 查表反量化的数值正确性
+        # 检查 dequantized_base_weight 是否正确使用了 NF4 查表
+        indices_ref = layer.weight_nf4_indices.long()
+        dequantized_ref = layer.nf4_table[indices_ref] * layer.weight_scale
+        
+        # 手动计算参考输出
+        base_out_ref = F.linear(x, dequantized_ref)
+        lora_out_ref = (x @ layer.lora_A.T) @ layer.lora_B.T * layer.scaling
+        out_ref = base_out_ref + lora_out_ref
+        
+        # 验证输出是否与参考实现接近
+        assert torch.allclose(out, out_ref, atol=1e-5), f"输出数值不正确！查表反量化或 LoRA 计算有误。\n期望输出范围: [{out_ref.min():.4f}, {out_ref.max():.4f}]\n实际输出范围: [{out.min():.4f}, {out.max():.4f}]"
+        
         # 2. 验证反向传播时的梯度断点机制 (QLoRA 的灵魂)
         out.sum().backward()
         
@@ -127,17 +144,18 @@ def test_qlora():
         
         print("✅ 查表反量化逻辑正确！")
         print("✅ 梯度流向正确：低精度冻结，高精度更新！")
-        print("\n🔥 QLoRA 核心模拟测试准确通过！你已经掌握了如何在 24G 显卡上微调百亿大模型的密码。")
+        print("\n QLoRA 核心模拟测试准确通过！你已经掌握了如何在 24G 显卡上微调百亿大模型的密码。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except TypeError as e:
         print("代码可能未完成，导致了操作错误。")
+        raise e 
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e
 
 test_qlora()
-
 ```
 
 ---

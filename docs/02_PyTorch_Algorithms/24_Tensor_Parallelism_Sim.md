@@ -81,7 +81,8 @@ def tensor_parallel_column_sim(X: torch.Tensor, A: torch.Tensor, num_gpus: int =
         # ==========================================
         # weight_chunk = ???
         # gpu_weights.append(weight_chunk)
-        pass
+        weight_chunk = torch.zeros(in_features, chunk_size)  # 占位初始化
+        gpu_weights.append(weight_chunk)
         
     # 2. 模拟各 GPU 并行前向计算
     # 在真实环境中，X 会被广播到所有 GPU (因为是列切分，输入不需要切)
@@ -92,15 +93,16 @@ def tensor_parallel_column_sim(X: torch.Tensor, A: torch.Tensor, num_gpus: int =
         # ==========================================
         # local_out = ???
         # gpu_outputs.append(local_out)
-        pass
+        local_out = X @ gpu_weights[i]  # 占位初始化
+        gpu_outputs.append(local_out)
         
     # 3. 模拟 All-Gather 通信操作
     # ==========================================
     # TODO 3: 将各 GPU 计算的结果沿特征维度 (dim=1) 拼接起来
     # ==========================================
     # Y_gathered = ???
-    # return Y_gathered
-    pass
+    Y_gathered = torch.cat(gpu_outputs, dim=1)  # 占位初始化
+    return Y_gathered
 
 ```
 
@@ -130,14 +132,16 @@ def test_tensor_parallel():
         assert diff < 1e-5, "TP 模拟结果与单卡全量计算不一致！"
         
         print("✅ Column Parallel (列切分) 矩阵计算与拼接逻辑正确！")
-        print("🔥 你掌握了 Megatron-LM 的核心张量切分思路，单卡装不下的大规模参数量再也不是问题。")
+        print("掌握了 Megatron-LM 的核心张量切分思路，单卡装不下的大规模参数量再也不是问题。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except TypeError as e:
         print("代码可能未完成，导致了操作错误。")
+        raise e
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e
 
 test_tensor_parallel()
 

@@ -71,9 +71,6 @@ class LlamaMLP(nn.Module):
         super().__init__()
         # ==========================================
         # TODO 1: 定义 SwiGLU 所需的三个线性层 (无 bias)
-        # gate_proj: hidden_size -> intermediate_size
-        # up_proj: hidden_size -> intermediate_size
-        # down_proj: intermediate_size -> hidden_size
         # ==========================================
         # self.gate_proj = ???
         # self.up_proj = ???
@@ -83,7 +80,6 @@ class LlamaMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # ==========================================
         # TODO 2: 实现 SwiGLU 的前向传播
-        # 提示: down_proj( F.silu(gate_proj(x)) * up_proj(x) )
         # ==========================================
         # return ???
         pass
@@ -104,13 +100,6 @@ class LlamaDecoderLayer(nn.Module):
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         # ==========================================
         # TODO 3: 实现 LLaMA 的 Pre-Norm 残差连接
-        # 步骤:
-        # 1. 对 hidden_states 存一个残差备份 (residual = hidden_states)
-        # 2. RMSNorm 归一化 -> 丢给 Attention 计算
-        # 3. 将 Attention 结果加上 residual，得到中间隐藏层 h
-        # 4. 对 h 存一个残差备份 (residual = h)
-        # 5. RMSNorm 归一化 -> 丢给 MLP 计算
-        # 6. 将 MLP 结果加上 residual，得到最终输出
         # ==========================================
         
         # --- Attention Block ---

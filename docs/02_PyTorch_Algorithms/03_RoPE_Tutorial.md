@@ -60,8 +60,10 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     # freqs = ???
     # t = ???
     # freqs_cis = ???
-    # return freqs_cis
-    pass
+                 
+    freqs_cis = torch.ones((end, dim // 2), dtype=torch.complex64)  # 占位初始化（错误实现，供测试框架捕获）                                                                                                             
+    return freqs_cis   
+    
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
@@ -82,6 +84,9 @@ def apply_rotary_emb(
     # ==========================================
     # xq_ = ???
     # xk_ = ???
+                                                                                                                                                                     
+    xq_ = torch.view_as_complex(torch.zeros(*xq.shape[:-1], xq.shape[-1] // 2, 2, dtype=xq.dtype, device=xq.device)) # 占位初始化     
+    xk_ = torch.view_as_complex(torch.zeros(*xk.shape[:-1], xk.shape[-1] // 2, 2, dtype=xk.dtype, device=xk.device)) # 占位初始化        
     
     
     # ==========================================
@@ -90,9 +95,12 @@ def apply_rotary_emb(
     # ==========================================
     # xq_out = ???
     # xk_out = ???
-    
-    # return xq_out.type_as(xq), xk_out.type_as(xk)
-    pass
+
+    xq_out = torch.zeros_like(xq)  # 占位初始化                                                                                                                                                               
+    xk_out = torch.zeros_like(xk)  # 占位初始化                                                                                                                                                               
+                 
+    return xq_out.type_as(xq), xk_out.type_as(xk)      
+
 ```
 
 
@@ -117,6 +125,10 @@ def test_rope():
         assert xq_out.shape == xq.shape, f"Query 输出形状错误: 期望 {xq.shape}, 实际 {xq_out.shape}"
         assert xk_out.shape == xk.shape, f"Key 输出形状错误: 期望 {xk.shape}, 实际 {xk_out.shape}"
         assert freqs_cis.shape == (seq_len, head_dim // 2), f"频率张量形状错误"
+        
+        # 🚀 核心修复：防止占位符作弊，输出绝不能等于输入
+        assert not torch.allclose(xq, xq_out, atol=1e-5), "TODO 3 未完成: 输出与输入完全相同，RoPE 旋转未生效！"
+        
         print("  ✅ 输出形状测试通过")
         print("  ✅ 频率张量形状测试通过")
 
@@ -133,7 +145,6 @@ def test_rope():
 
         # Test 3: 相对位置编码验证
         print("\n【Test 3】相对位置编码验证")
-        # 验证不同位置的输出确实不同（说明位置信息被编码）
         pos0 = xq_out[:, 0, :, :]
         pos1 = xq_out[:, 1, :, :]
         assert not torch.allclose(pos0, pos1, rtol=1e-3), "不同位置的输出相同，位置编码失败！"
@@ -153,7 +164,7 @@ def test_rope():
         print("  ✅ 精度提升机制工作正常")
 
         print("\n" + "=" * 60)
-        print("🔥 RoPE 算子实现通过测试。")
+        print(" RoPE 算子实现通过测试。")
         print("   所有测试用例均已通过")
         print("=" * 60)
 
@@ -163,8 +174,10 @@ def test_rope():
         print(f"\n❌ 测试失败: 代码可能未完成")
     except AssertionError as e:
         print(f"\n❌ 测试失败: {e}")
+        raise e  # 将错误抛给测试脚本
     except Exception as e:
         print(f"\n❌ 发生未知异常: {type(e).__name__}: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_rope()
 

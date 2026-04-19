@@ -80,6 +80,7 @@ def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     # TODO 1: 计算张量的绝对最大值 absmax
     # ==========================================
     # absmax = ???
+    absmax = torch.tensor(1.0)  # 占位初始化
     
     # 避免除以 0 的情况
     # if absmax == 0:
@@ -89,6 +90,7 @@ def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     # TODO 2: 计算缩放因子 scale (映射到 [-127, 127])
     # ==========================================
     # scale = ???
+    scale = torch.tensor(1.0)  # 占位初始化
     
     # ==========================================
     # TODO 3: 量化过程
@@ -96,9 +98,10 @@ def absmax_quantize(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     # ==========================================
     # x_scaled = ???
     # x_quant = ???
+    x_scaled = torch.zeros_like(x)  # 占位初始化
+    x_quant = torch.zeros_like(x, dtype=torch.int8)  # 占位初始化
     
-    # return x_quant, scale
-    pass
+    return x_quant, scale
 
 class W8A16Linear(nn.Module):
     """
@@ -134,10 +137,12 @@ class W8A16Linear(nn.Module):
         
         # w_fp = ???
         # w_dequant = ???
+        w_fp = torch.zeros_like(self.weight_int8, dtype=x.dtype)  # 占位初始化（错误实现，供测试框架捕获）
+        w_dequant = torch.zeros_like(w_fp)  # 占位初始化（错误实现，供测试框架捕获）
         
         # out = ???
-        # return out
-        pass
+        out = torch.zeros(x.shape[:-1] + (self.weight_int8.shape[0],), dtype=x.dtype, device=x.device)  # 占位初始化（错误实现，供测试框架捕获）
+        return out
 
 ```
 
@@ -190,13 +195,15 @@ def test_quantization():
         print("请先完成 TODO 代码！")
     except AttributeError:
         print("代码未完成导致变量属性错误。")
+        raise e
     except AssertionError as e:
         print(f"❌ 测试失败: {e}")
+        raise e  
     except Exception as e:
         print(f"❌ 发生未知异常: {e}")
+        raise e  
 
 test_quantization()
-
 ```
 
 ---

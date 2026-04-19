@@ -127,12 +127,12 @@ def test_gradient_checkpointing():
         if mem_ckpt <= mem_normal:
             print(f"✅ 梯度检查点实现通过测试。显存节省 {savings:.1f}%")
             if savings < 5:
-                print("💡 注意：显存节省效果较小。这是因为：")
+                print(" 注意：显存节省效果较小。这是因为：")
                 print("   - 模型层数较少（20层），激活值占总显存比例不高")
                 print("   - 在更深的模型（如50+层）和更长的序列（如8k+ tokens）中，节省效果更显著")
                 print("   - 实际大模型训练（如LLaMA、GPT）中，checkpoint可节省50-80%的激活值显存")
             else:
-                print("💡 实际显存节省效果取决于模型深度、序列长度和GPU架构。")
+                print(" 实际显存节省效果取决于模型深度、序列长度和GPU架构。")
                 print("   在更深的模型（如50+层）和更长的序列（如8k+ tokens）中，节省效果更显著。")
         else:
             print(f"❌ 显存占用反而增加了。请检查实现是否正确。")

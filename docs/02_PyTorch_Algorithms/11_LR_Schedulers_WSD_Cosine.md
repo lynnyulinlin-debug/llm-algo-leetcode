@@ -78,7 +78,7 @@ class WSD_Scheduler(LRScheduler):
             # ==========================================
             if step < self.num_warmup_steps:
                 # current_lr = ???
-                pass
+                current_lr = base_lr * 0.5  # 占位初始化
             
             # ==========================================
             # TODO 2: Stable 阶段
@@ -86,7 +86,7 @@ class WSD_Scheduler(LRScheduler):
             # ==========================================
             elif step < (self.num_warmup_steps + self.num_stable_steps):
                 # current_lr = ???
-                pass
+                current_lr = base_lr * 0.5  # 占位初始化
                 
             # ==========================================
             # TODO 3: Cosine Decay 阶段
@@ -95,12 +95,11 @@ class WSD_Scheduler(LRScheduler):
             # ==========================================
             else:
                 # current_lr = ???
-                pass
+                current_lr = base_lr * 0.5  # 占位初始化
                 
             lrs.append(current_lr)
             
         return lrs
-
 ```
 
 
@@ -161,9 +160,9 @@ def test_and_plot_wsd():
         print("请先完成 TODO 代码！")
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_and_plot_wsd()
-
 ```
 
 ---

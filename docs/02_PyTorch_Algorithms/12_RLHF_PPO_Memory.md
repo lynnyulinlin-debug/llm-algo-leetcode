@@ -61,28 +61,29 @@ def compute_actor_loss(log_probs_new, log_probs_old, advantages, clip_range=0.2)
     
     # ==========================================
     # TODO 1: 计算概率比率 ratio (r_t)
-    # 提示: log(A) - log(B) = log(A/B) -> exp() 后即为 A/B
     # ==========================================
     # ratio = ???
+    ratio = torch.ones_like(log_probs_new)  # 占位初始化
     
     # ==========================================
     # TODO 2: 计算无截断的 surrogate 目标
     # ==========================================
     # surr1 = ???
+    surr1 = torch.zeros_like(advantages)  # 占位初始化
     
     # ==========================================
     # TODO 3: 计算截断后的 surrogate 目标
     # ==========================================
     # surr2 = ???
+    surr2 = torch.zeros_like(advantages)  # 占位初始化
     
     # ==========================================
     # TODO 4: 计算最终的 Loss 
-    # PPO 的目标是最大化期望奖励，所以 Loss 要加负号 (取均值)
     # ==========================================
     # loss = ???
+    loss = torch.tensor(0.0)  # 占位初始化
     
-    pass
-
+    return loss
 
 ```
 
@@ -112,9 +113,9 @@ def test_ppo_actor_loss():
         print("请先完成 TODO 部分。")
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_ppo_actor_loss()
-
 
 ```
 

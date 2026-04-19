@@ -100,8 +100,6 @@ class GroupedQueryAttention(nn.Module):
         
         # ==========================================
         # TODO 1: Reshape xq, xk, xv 以适配多头注意力计算
-        # 目标形状: [batch_size, num_heads (或 kv_heads), seq_len, head_dim]
-        # 提示: 使用 .view() 和 .transpose()
         # ==========================================
         # xq = ???
         # xk = ???
@@ -110,7 +108,6 @@ class GroupedQueryAttention(nn.Module):
         
         # ==========================================
         # TODO 2: 处理 KV Cache
-        # 如果 kv_cache 不为空，将之前的 k_cache 和当前的 xk 在 seq_len 维度(dim=2)拼接
         # ==========================================
         if kv_cache is not None:
             k_cache, v_cache = kv_cache
@@ -125,9 +122,6 @@ class GroupedQueryAttention(nn.Module):
         
         # ==========================================
         # TODO 3: 计算注意力分数 (Scaled Dot-Product)
-        # 1. scores = Q @ K^T / sqrt(d)
-        # 2. probs = softmax(scores + mask)
-        # 3. output = probs @ V
         # ==========================================
         # scores = ???
         
