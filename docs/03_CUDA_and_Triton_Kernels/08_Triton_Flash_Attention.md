@@ -50,79 +50,70 @@
 import torch
 import triton
 import triton.language as tl
+```
 
+
+```python
 @triton.jit
 def flash_attn_fwd_kernel(
     Q_ptr, K_ptr, V_ptr, sm_scale,
     Out_ptr,
     seqlen_q, seqlen_k, head_dim,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr,
+    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
 ):
     # 1. 确定当前 Program 的 ID 和处理的 Q 块范围
-    # 为了简化，我们只处理单 Batch 单 Head 的情况，所以 grid 只有一个维度：处理 Q 的哪个分块
     start_m = tl.program_id(0)
     
     # 初始化指向 Q 块的指针偏移
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    offs_d = tl.arange(0, head_dim)
+    offs_d = tl.arange(0, BLOCK_DMODEL)
     
-    # 我们假设 head_dim 恰好等于 BLOCK_D，且 seqlen_q 是 BLOCK_M 的倍数 (省去边界检查的麻烦)
-    q_ptrs = Q_ptr + (offs_m[:, None] * head_dim + offs_d[None, :])
+    q_ptrs = Q_ptr + (offs_m[:, None] * BLOCK_DMODEL + offs_d[None, :])
     q = tl.load(q_ptrs)
     
     # 2. 初始化累加器和 Online Softmax 的状态
-    acc = tl.zeros((BLOCK_M, head_dim), dtype=tl.float32)
+    acc = tl.zeros((BLOCK_M, BLOCK_DMODEL), dtype=tl.float32)
     m_i = tl.zeros((BLOCK_M,), dtype=tl.float32) - float('inf')
     l_i = tl.zeros((BLOCK_M,), dtype=tl.float32)
     
     # 3. 内层循环：遍历 K 和 V 的所有块
-    # 计算需要循环多少次
     num_n_blocks = tl.cdiv(seqlen_k, BLOCK_N)
     
     for start_n in range(0, num_n_blocks):
         offs_n = start_n * BLOCK_N + tl.arange(0, BLOCK_N)
         
-        # 加载 K 块和 V 块
-        # 注意 K 需要转置，即原本形状是 (seqlen_k, head_dim)，取出来的块是 (BLOCK_N, head_dim)
-        # 转置后可以直接和 Q 矩阵相乘
-        k_ptrs = K_ptr + (offs_n[:, None] * head_dim + offs_d[None, :])
-        v_ptrs = V_ptr + (offs_n[:, None] * head_dim + offs_d[None, :])
+        k_ptrs = K_ptr + (offs_n[:, None] * BLOCK_DMODEL + offs_d[None, :])
+        v_ptrs = V_ptr + (offs_n[:, None] * BLOCK_DMODEL + offs_d[None, :])
         k = tl.load(k_ptrs)
         v = tl.load(v_ptrs)
         
         # ==========================================
         # TODO 1: 计算注意力分数 S = Q @ K^T * scale
-        # 提示: 使用 tl.dot(A, B)，注意 K 的形状是 (BLOCK_N, head_dim)，所以需要转置 tl.trans(k)
         # ==========================================
         # qk = ???
-        qk = tl.dot(q, tl.trans(k))
-        qk *= sm_scale
+        # qk *= sm_scale
+        qk = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)  # 占位初始化
         
         # ==========================================
         # TODO 2: 计算 Online Softmax 的新状态
-        # 1. m_block = 当前块每行的最大值
-        # 2. m_new = max(旧的 m_i, m_block)
         # ==========================================
-        m_block = tl.max(qk, axis=1)
-        m_new = tl.maximum(m_i, m_block)
+        # m_block = ???
+        # m_new = ???
+        m_new = m_i  # 占位初始化
         
         # ==========================================
         # TODO 3: 计算指数并更新 l_i 和 p
-        # 1. p = tl.exp(qk - m_new[:, None])
-        # 2. 修正过去的 l_i：l_new = l_i * exp(m_i - m_new) + 当前 p 的行和
         # ==========================================
-        p = tl.exp(qk - m_new[:, None])
-        alpha = tl.exp(m_i - m_new)
-        l_new = l_i * alpha + tl.sum(p, axis=1)
+        # p = ???
+        # alpha = ???
+        # l_new = ???
+        p = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)  # 占位初始化
+        l_new = l_i  # 占位初始化
         
         # ==========================================
         # TODO 4: 修正过去的输出结果 acc，并累加新的 p @ v
-        # 注意：这里需要先把 acc 也乘以修正系数 alpha[:, None]
-        # 然后使用 tl.dot 累加 p 和 v 的乘积
         # ==========================================
         # acc = ???
-        acc = acc * alpha[:, None]
-        acc += tl.dot(p.to(v.dtype), v)
         
         # 更新状态准备进入下一块的循环
         m_i = m_new
@@ -132,7 +123,7 @@ def flash_attn_fwd_kernel(
     acc = acc / l_i[:, None]
     
     # 5. 写回显存
-    out_ptrs = Out_ptr + (offs_m[:, None] * head_dim + offs_d[None, :])
+    out_ptrs = Out_ptr + (offs_m[:, None] * BLOCK_DMODEL + offs_d[None, :])
     tl.store(out_ptrs, acc.to(Out_ptr.dtype.element_ty))
 
 def triton_flash_attention(q, k, v, sm_scale):
@@ -143,18 +134,18 @@ def triton_flash_attention(q, k, v, sm_scale):
     out = torch.empty_like(q)
     
     # 配置分块大小
-    BLOCK_M = 128
-    BLOCK_N = 128
+    BLOCK_M = 64
+    BLOCK_N = 64
+    BLOCK_DMODEL = triton.next_power_of_2(head_dim)
     
     grid = (triton.cdiv(seqlen_q, BLOCK_M), )
     
     flash_attn_fwd_kernel[grid](
         q, k, v, sm_scale, out,
         seqlen_q, seqlen_k, head_dim,
-        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N
+        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_DMODEL=BLOCK_DMODEL,
     )
     return out
-
 ```
 
 
@@ -192,15 +183,15 @@ def test_triton_flash_attention():
         print(f"最大误差: {diff.item():.6e}")
         assert diff < 1e-3, "Triton Flash Attention 结果不正确！"
         
-        print("✅ 太震撼了！你成功用 Triton 编写了最核心的 Flash Attention 前向计算内核！")
-        print("🔥 能够处理 SRAM 中块与块之间的局部最大值归约更新，标志着你已正式踏入高阶算子开发的大门。")
+        print("✅ Triton Flash Attention 前向计算内核实现成功！")
+        print(" 实现了 SRAM 中块与块之间的局部最大值归约更新，掌握了 Online Softmax 的核心机制。")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         # 典型的 LLM 推理/训练尺寸
         seqlen_q = 4096
         seqlen_k = 4096
-        head_dim = 128
+        head_dim = 64
         q_l = torch.randn(seqlen_q, head_dim, device='cuda', dtype=torch.float16)
         k_l = torch.randn(seqlen_k, head_dim, device='cuda', dtype=torch.float16)
         v_l = torch.randn(seqlen_k, head_dim, device='cuda', dtype=torch.float16)
@@ -228,7 +219,6 @@ def test_triton_flash_attention():
         print(f"❌ 测试失败: {e}")
 
 test_triton_flash_attention()
-
 ```
 
 ---
@@ -240,13 +230,9 @@ test_triton_flash_attention()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-### 💡 参考解答：Triton Flash Attention 前向算子
+## 参考代码与解析
 
-在这个实现中，我们完成了核心的 Flash Attention 前向计算内核。注意以下几个关键点：
-1. **QK 点积与缩放**：使用 `tl.dot(q, tl.trans(k))` 计算注意力分数，并乘以 `sm_scale`。
-2. **局部最大值更新**：计算当前块的最大值 `m_block = tl.max(qk, axis=1)`，然后用 `tl.maximum(m_i, m_block)` 更新全局最大值 `m_new`。
-3. **分母与概率更新**：根据新的最大值计算概率 `p = tl.exp(qk - m_new[:, None])`。修正系数 `alpha = tl.exp(m_i - m_new)` 用于缩放之前的累加值，然后更新归一化分母 `l_new = l_i * alpha + tl.sum(p, axis=1)`。
-4. **输出累加**：先用 `alpha` 修正之前的累加器结果 `acc = acc * alpha[:, None]`，然后再累加当前块的加权值 `acc += tl.dot(p.to(v.dtype), v)`。最后别忘了循环结束后除以全局的 `l_i` 进行归一化。
+### 代码
 
 ```python
 import torch
@@ -258,20 +244,21 @@ def flash_attn_fwd_kernel(
     Q_ptr, K_ptr, V_ptr, sm_scale,
     Out_ptr,
     seqlen_q, seqlen_k, head_dim,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr,
+    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
 ):
     # 1. 确定当前 Program 的 ID 和处理的 Q 块范围
     start_m = tl.program_id(0)
     
     # 初始化指向 Q 块的指针偏移
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    offs_d = tl.arange(0, head_dim)
+    offs_d = tl.arange(0, BLOCK_DMODEL)
     
-    q_ptrs = Q_ptr + (offs_m[:, None] * head_dim + offs_d[None, :])
+    # 我们假设 head_dim 恰好等于 BLOCK_DMODEL，且 seqlen_q 是 BLOCK_M 的倍数
+    q_ptrs = Q_ptr + (offs_m[:, None] * BLOCK_DMODEL + offs_d[None, :])
     q = tl.load(q_ptrs)
     
     # 2. 初始化累加器和 Online Softmax 的状态
-    acc = tl.zeros((BLOCK_M, head_dim), dtype=tl.float32)
+    acc = tl.zeros((BLOCK_M, BLOCK_DMODEL), dtype=tl.float32)
     m_i = tl.zeros((BLOCK_M,), dtype=tl.float32) - float('inf')
     l_i = tl.zeros((BLOCK_M,), dtype=tl.float32)
     
@@ -281,25 +268,34 @@ def flash_attn_fwd_kernel(
     for start_n in range(0, num_n_blocks):
         offs_n = start_n * BLOCK_N + tl.arange(0, BLOCK_N)
         
-        k_ptrs = K_ptr + (offs_n[:, None] * head_dim + offs_d[None, :])
-        v_ptrs = V_ptr + (offs_n[:, None] * head_dim + offs_d[None, :])
+        # 加载 K 块和 V 块
+        k_ptrs = K_ptr + (offs_n[:, None] * BLOCK_DMODEL + offs_d[None, :])
+        v_ptrs = V_ptr + (offs_n[:, None] * BLOCK_DMODEL + offs_d[None, :])
         k = tl.load(k_ptrs)
         v = tl.load(v_ptrs)
         
+        # ==========================================
         # TODO 1: 计算注意力分数 S = Q @ K^T * scale
+        # ==========================================
         qk = tl.dot(q, tl.trans(k))
         qk *= sm_scale
         
+        # ==========================================
         # TODO 2: 计算 Online Softmax 的新状态
+        # ==========================================
         m_block = tl.max(qk, axis=1)
         m_new = tl.maximum(m_i, m_block)
         
+        # ==========================================
         # TODO 3: 计算指数并更新 l_i 和 p
+        # ==========================================
         p = tl.exp(qk - m_new[:, None])
         alpha = tl.exp(m_i - m_new)
         l_new = l_i * alpha + tl.sum(p, axis=1)
         
+        # ==========================================
         # TODO 4: 修正过去的输出结果 acc，并累加新的 p @ v
+        # ==========================================
         acc = acc * alpha[:, None]
         acc += tl.dot(p.to(v.dtype), v)
         
@@ -311,24 +307,80 @@ def flash_attn_fwd_kernel(
     acc = acc / l_i[:, None]
     
     # 5. 写回显存
-    out_ptrs = Out_ptr + (offs_m[:, None] * head_dim + offs_d[None, :])
+    out_ptrs = Out_ptr + (offs_m[:, None] * BLOCK_DMODEL + offs_d[None, :])
     tl.store(out_ptrs, acc.to(Out_ptr.dtype.element_ty))
 
 def triton_flash_attention(q, k, v, sm_scale):
+    # 限制条件简化：仅支持 2D 张量，且能被 BLOCK 整除
     seqlen_q, head_dim = q.shape
     seqlen_k, _ = k.shape
     
     out = torch.empty_like(q)
     
-    BLOCK_M = 128
-    BLOCK_N = 128
+    # 配置分块大小
+    BLOCK_M = 64
+    BLOCK_N = 64
+    BLOCK_DMODEL = triton.next_power_of_2(head_dim)
     
     grid = (triton.cdiv(seqlen_q, BLOCK_M), )
     
     flash_attn_fwd_kernel[grid](
         q, k, v, sm_scale, out,
         seqlen_q, seqlen_k, head_dim,
-        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N
+        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_DMODEL=BLOCK_DMODEL,
     )
     return out
 ```
+
+### 解析
+
+**1. TODO 1: 计算注意力分数 S = Q @ K^T * scale**
+- **实现方式**：
+  ```python
+  qk = tl.dot(q, tl.trans(k))
+  qk *= sm_scale
+  ```
+- **关键点**：使用 `tl.dot()` 在 SRAM 内计算矩阵乘法，`tl.trans(k)` 对 K 进行转置
+- **技术细节**：`sm_scale = 1/√d` 是注意力机制的标准缩放因子，防止点积值过大导致 softmax 梯度消失。在 SRAM 内完成矩阵乘法避免了中间结果写回 HBM 的开销。
+
+**2. TODO 2: 计算 Online Softmax 的新状态**
+- **实现方式**：
+  ```python
+  m_block = tl.max(qk, axis=1)
+  m_new = tl.maximum(m_i, m_block)
+  ```
+- **关键点**：计算当前块的行最大值，并与历史最大值比较更新
+- **技术细节**：Online Softmax 的核心是维护全局最大值 `m_i`。每处理一个新的 K/V 块，都需要更新最大值。`tl.maximum()` 逐元素比较，确保 `m_new` 是迄今为止所有块的全局最大值。
+
+**3. TODO 3: 计算指数并更新 l_i 和 p**
+- **实现方式**：
+  ```python
+  p = tl.exp(qk - m_new[:, None])
+  alpha = tl.exp(m_i - m_new)
+  l_new = l_i * alpha + tl.sum(p, axis=1)
+  ```
+- **关键点**：计算修正系数 `alpha` 和更新归一化分母 `l_i`
+- **技术细节**：
+  - `p = tl.exp(qk - m_new[:, None])` 计算当前块的 softmax 分子（减去最大值保证数值稳定）
+  - `alpha = tl.exp(m_i - m_new)` 是修正系数，用于缩放之前累加的结果。当 `m_new > m_i` 时，之前的累加值被高估了，需要乘以 `alpha < 1` 进行修正
+  - `l_new = l_i * alpha + tl.sum(p, axis=1)` 更新归一化分母，左边是修正后的历史分母，右边是当前块的贡献
+
+**4. TODO 4: 修正过去的输出结果 acc，并累加新的 p @ v**
+- **实现方式**：
+  ```python
+  acc = acc * alpha[:, None]
+  acc += tl.dot(p.to(v.dtype), v)
+  ```
+- **关键点**：先修正历史累加值，再累加当前块的贡献
+- **技术细节**：
+  - `acc * alpha[:, None]` 将之前累加的输出乘以修正系数，补偿最大值变化带来的影响
+  - `tl.dot(p.to(v.dtype), v)` 计算当前块的加权输出并累加。`p.to(v.dtype)` 确保数据类型匹配（通常 v 是 FP16，p 是 FP32）
+  - 循环结束后 `acc / l_i[:, None]` 完成最终归一化
+
+**工程优化要点**
+- **O(N) 显存复杂度**：标准 Attention 需要存储 `(seq_len, seq_len)` 的注意力矩阵，显存复杂度 O(N²)。Flash Attention 通过分块计算和 Online Softmax，只需 O(N) 显存存储输入输出和累加器。
+- **SRAM 优化**：所有计算（矩阵乘法、softmax、加权求和）都在 SRAM 内完成，最小化 HBM 访问。每个 Q 块只需从 HBM 读取一次，所有 K/V 块遍历完成后写回一次。
+- **Tiling 策略**：将 Q 分成 `BLOCK_M` 大小的块，K/V 分成 `BLOCK_N` 大小的块。典型配置 `BLOCK_M = BLOCK_N = 128`，在 A100 上可以充分利用 SRAM（192KB）。
+- **Online Softmax 数学原理**：通过维护全局最大值 `m_i` 和归一化分母 `l_i`，实现增量式 softmax 计算。修正系数 `alpha = exp(m_old - m_new)` 确保数学上等价于一次性计算全局 softmax。
+- **数值稳定性**：始终减去最大值后再计算指数，避免 `exp(large_number)` 导致的溢出。
+- **工业级应用**：Flash Attention 是 GPT-3/4、LLaMA 等大模型训练和推理的标配，相比标准实现可获得 2-4x 加速，并支持更长的上下文长度（受限于显存的问题得到根本解决）。

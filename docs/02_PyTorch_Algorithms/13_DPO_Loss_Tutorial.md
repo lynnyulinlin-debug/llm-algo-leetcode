@@ -51,7 +51,10 @@
 ```python
 import torch
 import torch.nn.functional as F
+```
 
+
+```python
 def dpo_loss(
     policy_chosen_logps: torch.Tensor,
     policy_rejected_logps: torch.Tensor,
@@ -77,30 +80,29 @@ def dpo_loss(
     
     # ==========================================
     # TODO 1: 计算 chosen 样本的隐式奖励分数 (Logits 差值)
-    # 提示: policy_chosen_logps - reference_chosen_logps
     # ==========================================
     # pi_logratios_chosen = ???
+    pi_logratios_chosen = torch.zeros_like(policy_chosen_logps)  # 占位初始化
     
     # ==========================================
     # TODO 2: 计算 rejected 样本的隐式奖励分数
     # ==========================================
     # pi_logratios_rejected = ???
+    pi_logratios_rejected = torch.zeros_like(policy_rejected_logps)  # 占位初始化
     
     # 乘以 beta (控制项)
-    # chosen_rewards = beta * pi_logratios_chosen
-    # rejected_rewards = beta * pi_logratios_rejected
+    chosen_rewards = beta * pi_logratios_chosen
+    rejected_rewards = beta * pi_logratios_rejected
     
     # ==========================================
     # TODO 3: 计算 logits 差值并放入 sigmoid 交叉熵中
-    # 目标：让 chosen 的 reward 尽可能比 rejected 的 reward 大
-    # 公式：-log(sigmoid(chosen_rewards - rejected_rewards))
-    # 提示：可以用 F.logsigmoid 保证数值稳定性
     # ==========================================
     # logits = ???
     # losses = ???
+    logits = torch.zeros_like(chosen_rewards)  # 占位初始化
+    losses = torch.zeros_like(chosen_rewards)  # 占位初始化
     
-    # return losses, chosen_rewards, rejected_rewards
-    pass
+    return losses, chosen_rewards, rejected_rewards
 
 ```
 
@@ -137,17 +139,18 @@ def test_dpo_loss():
         expected_loss_0 = -F.logsigmoid(torch.tensor(0.2))
         assert torch.allclose(losses[0], expected_loss_0), f"Loss 计算错误: 期望 {expected_loss_0}, 实际 {losses[0]}"
         
-        print("\n✅ All Tests Passed! 恭喜你，工业级 DPO 损失函数算法实现成功！(这是 TRL 库的核心实现！)")
+        print("\n✅ All Tests Passed! DPO 损失函数实现通过测试。")
         
     except NotImplementedError:
         print("请先完成 TODO 部分的代码！")
     except TypeError as e:
         print("代码未完成，导致解包 None 错误")
+        raise e
     except Exception as e:
         print(f"\n❌ 测试失败: {e}")
+        raise e
 
 test_dpo_loss()
-
 ```
 
 ---
@@ -159,20 +162,91 @@ test_dpo_loss()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-直接偏好优化（DPO）损失旨在绕过强化学习阶段，通过对比正向样本和负向样本的隐式奖励来优化策略。代码计算了参考模型和策略模型对被选中和被拒绝样本的对数概率比，通过 Sigmoid 函数形成交叉熵损失。
+## 参考代码与解析
+
+### 代码
 
 ```python
-def compute_dpo_loss(policy_chosen_logps, policy_rejected_logps, 
-                     reference_chosen_logps, reference_rejected_logps, 
-                     beta=0.1):
-    pi_logratios = policy_chosen_logps - policy_rejected_logps
-    ref_logratios = reference_chosen_logps - reference_rejected_logps
+def dpo_loss(
+    policy_chosen_logps: torch.Tensor,
+    policy_rejected_logps: torch.Tensor,
+    reference_chosen_logps: torch.Tensor,
+    reference_rejected_logps: torch.Tensor,
+    beta: float = 0.1,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    直接偏好优化 (DPO) 的损失函数实现
     
-    logits = pi_logratios - ref_logratios
+    Args:
+        policy_chosen_logps: 当前模型在 chosen 样本上的对数概率和，形状 [batch_size]
+        policy_rejected_logps: 当前模型在 rejected 样本上的对数概率和，形状 [batch_size]
+        reference_chosen_logps: 参考模型在 chosen 样本上的对数概率和，形状 [batch_size]
+        reference_rejected_logps: 参考模型在 rejected 样本上的对数概率和，形状 [batch_size]
+        beta: 偏好系数 (温度超参)，控制偏离参考模型的程度
     
-    losses = -F.logsigmoid(beta * logits)
-    rewards_chosen = beta * (policy_chosen_logps - reference_chosen_logps).detach()
-    rewards_rejected = beta * (policy_rejected_logps - reference_rejected_logps).detach()
+    Returns:
+        losses: DPO 损失，形状 [batch_size]
+        chosen_rewards: 隐式的 chosen 奖励，形状 [batch_size]
+        rejected_rewards: 隐式的 rejected 奖励，形状 [batch_size]
+    """
     
-    return losses.mean(), rewards_chosen.mean(), rewards_rejected.mean()
+    # TODO 1: 计算 chosen 样本的隐式奖励分数
+    pi_logratios_chosen = policy_chosen_logps - reference_chosen_logps
+    
+    # TODO 2: 计算 rejected 样本的隐式奖励分数
+    pi_logratios_rejected = policy_rejected_logps - reference_rejected_logps
+    
+    # 乘以 beta 得到隐式奖励
+    chosen_rewards = beta * pi_logratios_chosen
+    rejected_rewards = beta * pi_logratios_rejected
+    
+    # TODO 3: 计算 DPO 损失
+    logits = chosen_rewards - rejected_rewards
+    losses = -F.logsigmoid(logits)
+    
+    return losses, chosen_rewards, rejected_rewards
+
 ```
+
+### 解析
+
+**1. TODO 1 & 2: 计算隐式奖励分数 (Implicit Reward)**
+
+- **实现方式**：
+  ```python
+  pi_logratios_chosen = policy_chosen_logps - reference_chosen_logps
+  pi_logratios_rejected = policy_rejected_logps - reference_rejected_logps
+  ```
+- **数学原理**：DPO 的核心洞察是将 Reward Model 的奖励函数隐式地表达为策略模型与参考模型的对数概率比：
+  $$\hat{r}(x,y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{ref}(y|x)} = \beta (\log \pi_\theta(y|x) - \log \pi_{ref}(y|x))$$
+- **物理含义**：
+  - 如果策略模型对某个回复的概率高于参考模型（`policy_logps > reference_logps`），则隐式奖励为正，表示该回复被认为是好的。
+  - 如果策略模型对某个回复的概率低于参考模型（`policy_logps < reference_logps`），则隐式奖励为负，表示该回复被认为是差的。
+- **beta 的作用**：控制策略模型偏离参考模型的程度。较大的 beta 会更严格地约束策略模型不要偏离参考模型太远。
+
+**2. TODO 3: 计算 DPO 损失**
+
+- **实现方式**：
+  ```python
+  logits = chosen_rewards - rejected_rewards
+  losses = -F.logsigmoid(logits)
+  ```
+- **数学公式**：
+  $$L_{DPO} = -\log \sigma(\hat{r}(x, y_w) - \hat{r}(x, y_l))$$
+  其中 $\sigma$ 是 Sigmoid 函数，$y_w$ 是 chosen 样本，$y_l$ 是 rejected 样本。
+- **优化目标**：最大化 chosen 样本的隐式奖励与 rejected 样本的隐式奖励之间的差距。
+  - 当 `chosen_rewards > rejected_rewards` 时，`logits > 0`，`sigmoid(logits) > 0.5`，损失较小。
+  - 当 `chosen_rewards < rejected_rewards` 时，`logits < 0`，`sigmoid(logits) < 0.5`，损失较大，梯度会推动模型增大 chosen 的概率，减小 rejected 的概率。
+- **数值稳定性**：使用 `F.logsigmoid` 而非 `torch.log(torch.sigmoid())`，避免数值下溢问题。
+
+**工程要点**
+
+- **与 RLHF 对比**：
+  - RLHF (PPO) 需要 4 个模型：Actor、Critic、Reward Model、Reference Model，显存开销巨大。
+  - DPO 只需要 2 个模型：Policy Model（训练中）、Reference Model（冻结），显存效率提升 50%。
+- **数据格式**：DPO 需要成对的偏好数据 `(prompt, chosen_response, rejected_response)`，通常来自人类标注或 AI 反馈。
+- **训练稳定性**：DPO 避免了强化学习的不稳定性（如 PPO 的 Clip 机制、Value 函数估计误差），训练过程更加稳定。
+- **超参数调优**：
+  - `beta`：通常设为 0.1-0.5，控制偏离参考模型的程度。
+  - Reference Model：通常使用 SFT 后的模型作为参考模型，确保策略模型不会偏离有监督微调的分布太远。
+- **实际应用**：DPO 已被广泛应用于开源模型的对齐训练，如 Zephyr、Mistral-Instruct 等，是目前最流行的 RLHF 替代方案。

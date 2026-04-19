@@ -12,10 +12,10 @@
 
 在标准的自注意力 (Self-Attention) 机制中，时间复杂度和空间复杂度都是序列长度 $O(N^2)$。当序列变得极长（如 128k, 1M Token），庞大的 $N \times N$ 注意力分数矩阵 $(QK^T)$ 会直接导致显存溢出 (OOM)。
 
-FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想不是减少计算量 (FLOPs 甚至略有增加)，而是通过 **Tiling (分块计算)** 和 **Online Softmax** 彻底避免了将大规模的 $N \times N$ 中间结果写回到缓慢的 GPU 显存 (HBM) 中，从而将空间复杂度降为 $O(N)$，并大幅提升了实际运行速度。
+FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想不是减少计算量 (FLOPs 甚至略有增加)，而是通过 **Tiling (分块计算)** 和 **Online Softmax** 完全避免了将大规模的 $N \times N$ 中间结果写回到缓慢的 GPU 显存 (HBM) 中，从而将空间复杂度降为 $O(N)$，并大幅提升了实际运行速度。
 
 
-本节我们将不用 Triton/CUDA，而是仅用 PyTorch 的循环，在数学逻辑上 1:1 模拟 FlashAttention 的前向计算过程，帮助你彻底弄懂 Online Softmax 是如何工作的。
+本节我们将不用 Triton/CUDA，而是仅用 PyTorch 的循环，在数学逻辑上 1:1 模拟 FlashAttention 的前向计算过程，帮助你完全弄懂 Online Softmax 是如何工作的。
 
 
 > **相关阅读**:
@@ -54,7 +54,10 @@ FlashAttention (Tri Dao et al., 2022) 带来了一场革命。它的核心思想
 ```python
 import torch
 import math
+```
 
+
+```python
 def flash_attention_forward_sim(q, k, v, block_size=2):
     """
     纯 PyTorch 模拟 FlashAttention 前向传播。
@@ -80,17 +83,13 @@ def flash_attention_forward_sim(q, k, v, block_size=2):
             
             # ==========================================
             # TODO 1: 计算当前块的未归一化分数 S_ij
-            # S_ij = q_block @ k_block^T
             # ==========================================
             # S_ij = ???
             
             # ==========================================
             # TODO 2: 计算当前块的局部最大值 m_block，并求出新的全局最大值 m_new
-            # m_block = S_ij 沿列方向的最大值 (保持维度为二维列向量)
-            # m_new = max(旧的 m_i, m_block)
             # ==========================================
             # m_block = ???
-            # m_old = m[i:i+block_size]
             # m_new = ???
             
             # ==========================================
@@ -100,22 +99,12 @@ def flash_attention_forward_sim(q, k, v, block_size=2):
             
             # ==========================================
             # TODO 4: 计算当前块的局部指数和 l_block，并更新全局指数和 l_new
-            # l_block = P_ij 沿列方向的求和 (保持维度为二维列向量)
-            # l_old = l[i:i+block_size]
-            # l_new = l_old * exp(m_old - m_new) + l_block
             # ==========================================
             # l_block = ???
             # l_new = ???
             
             # ==========================================
             # TODO 5: 更新输出 O_i
-            # out_old = out[i:i+block_size]
-            # out_new = (out_old * l_old * exp(m_old - m_new) + P_ij @ v_block) / l_new
-            # 但实际上我们在循环中只保存累加的分子，最后再除以 l_new。
-            # 为了简便，我们在此处每步都更新真正的归一化结果，这就需要：
-            # 去掉旧结果中隐含的 l_old 分母，乘以修正系数，加上新项，再除以全新的分母。
-            # 更简单的迭代公式是：
-            # out_new = diag(l_old * exp(m_old - m_new) / l_new) @ out_old + diag(1 / l_new) @ (P_ij @ v_block)
             # ==========================================
             # out[i:i+block_size] = ???
             
@@ -154,7 +143,7 @@ def test_flash_attention_sim():
         assert diff < 1e-5, "计算结果与标准 Attention 不一致！"
         
         print("✅ Online Softmax 与分块计算逻辑正确！")
-        print("\n🔥 你已成功通过纯数学推导模拟了 FlashAttention 的核心机制！这让你在面试中解释其原理时能应对自如。")
+        print("\n FlashAttention 分块计算逻辑验证通过。")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
@@ -181,11 +170,11 @@ test_flash_attention_sim()
 
 > **FlashAttention-3 (2024)：绑定 Hopper (H100) 的极限压榨**
 > - **核心创新 1：WGMMA 异步计算**。H100 引入了 Warp Group (4 个 Warp 为一组)，FA3 使用了底层架构特有指令，允许 Tensor Core 在后台异步执行计算，而不阻塞寄存器。
-> - **核心创新 2：TMA (Tensor Memory Accelerator)**。H100 专有的硬件级内存搬运器。FA3 让 TMA 自动从全局显存抓取数据到共享内存 (SRAM)，彻底解放了用于搬运数据的线程。
+> - **核心创新 2：TMA (Tensor Memory Accelerator)**。H100 专有的硬件级内存搬运器。FA3 让 TMA 自动从全局显存抓取数据到共享内存 (SRAM)，完全解放了用于搬运数据的线程。
 > - **核心创新 3：2-Stage to Ping-Pong Pipeline**。V1/V2 是两级流水线（Load -> Compute）。FA3 利用 TMA 实现了高效的软件流水线以掩盖延迟，实现了计算与访存的有效重叠。
 
 ---
-**🧠 思考题（进阶验证）**：
+** 思考题（进阶验证）**：
 在 V1 的算法中，我们在内层循环每次更新块时，都会执行 `v_block = v_block * scale1 + v_i * scale2`。这个标量乘法是跑在 CUDA Core 上的，速度很慢。
 如果我们要朝着 FlashAttention-2 的方向优化上面的纯 PyTorch 模拟代码，我们应该怎么在数学上修改这段 `Online Softmax`，使得 `v_block` 的缩放只在整个循环结束时发生一次？
 ---
@@ -197,19 +186,100 @@ test_flash_attention_sim()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-Flash Attention 是一种用于加速注意力的核心技术。其本质是通过硬件级别的分块计算（Tiling）和在片上存储的重算机制，大幅度降低了 HBM 到 SRAM 的访存瓶颈。
+## 参考代码与解析
+
+### 代码
 
 ```python
-def flash_attention_sim(Q, K, V, mask=None):
-    scale = 1.0 / math.sqrt(Q.size(-1))
+def flash_attention_forward_sim(q, k, v, block_size=2):
+    """
+    纯 PyTorch 模拟 FlashAttention 前向传播。
+    假设没有 Batch 和 Head 维度，q, k, v 的形状都是 (seq_len, dim)。
+    """
+    seq_len, dim = q.shape
     
-    scores = torch.matmul(Q, K.transpose(-2, -1)) * scale
+    # TODO 1: 初始化输出 O，全局最大值 m，全局指数和 l
+    out = torch.zeros((seq_len, dim), device=q.device)
+    m = torch.full((seq_len, 1), -float('inf'), device=q.device)
+    l = torch.zeros((seq_len, 1), device=q.device)
     
-    if mask is not None:
-        scores = scores.masked_fill(mask == 0, float("-inf"))
+    scale = 1.0 / math.sqrt(dim)
+    
+    # 外层循环：遍历 Q 的分块
+    for i in range(0, seq_len, block_size):
+        q_block = q[i:i+block_size] * scale
+        m_i = m[i:i+block_size]
+        l_i = l[i:i+block_size]
+        out_i = out[i:i+block_size]
         
-    attn_weights = F.softmax(scores, dim=-1)
-    
-    output = torch.matmul(attn_weights, V)
-    return output
+        # 内层循环：遍历 K, V 的分块
+        for j in range(0, seq_len, block_size):
+            k_block = k[j:j+block_size]
+            v_block = v[j:j+block_size]
+            
+            # TODO 2: 计算当前块的未归一化分数 S_ij
+            S_ij = q_block @ k_block.transpose(-2, -1)
+            
+            # TODO 3: 计算当前块的局部最大值 m_block，并求出新的全局最大值 m_new
+            m_block = torch.max(S_ij, dim=-1, keepdim=True)[0]
+            m_new = torch.maximum(m_i, m_block)
+            
+            # TODO 4: 计算 P_ij = exp(S_ij - m_new)
+            P_ij = torch.exp(S_ij - m_new)
+            
+            # TODO 5: 计算当前块的局部指数和 l_block，并更新全局指数和 l_new
+            l_block = torch.sum(P_ij, dim=-1, keepdim=True)
+            l_new = l_i * torch.exp(m_i - m_new) + l_block
+            
+            # TODO 6: 更新输出 O_i（使用 Online Softmax 的修正公式）
+            out_i = out_i * (l_i * torch.exp(m_i - m_new) / l_new) + (P_ij @ v_block) / l_new
+            
+            # 更新全局状态
+            m_i = m_new
+            l_i = l_new
+        
+        # 写回全局变量
+        out[i:i+block_size] = out_i
+        m[i:i+block_size] = m_i
+        l[i:i+block_size] = l_i
+            
+    return out
 ```
+
+### 解析
+
+**1. TODO 1: 初始化全局状态**
+- **实现方式**：`out = torch.zeros((seq_len, dim))`，`m = torch.full((seq_len, 1), -float('inf'))`，`l = torch.zeros((seq_len, 1))`
+- **关键点**：m 初始化为负无穷，确保第一个块的最大值能正确更新；l 初始化为 0，用于累加指数和
+- **技术细节**：使用 `keepdim=True` 保持二维列向量形状，便于后续广播运算
+
+**2. TODO 2: 计算当前块的未归一化分数 S_ij**
+- **实现方式**：`S_ij = q_block @ k_block.transpose(-2, -1)`
+- **关键点**：这是标准的 Attention Score 计算，但只针对当前的 Q 块和 K 块
+- **技术细节**：q_block 已经在外层循环中乘以了 scale，避免重复缩放
+
+**3. TODO 3: 计算局部最大值并更新全局最大值**
+- **实现方式**：`m_block = torch.max(S_ij, dim=-1, keepdim=True)[0]`，`m_new = torch.maximum(m_i, m_block)`
+- **关键点**：Online Softmax 的核心——动态更新最大值，用于数值稳定性
+- **技术细节**：使用 `torch.maximum` 而非 `torch.max`，因为需要逐元素比较两个张量
+
+**4. TODO 4: 计算归一化的注意力权重 P_ij**
+- **实现方式**：`P_ij = torch.exp(S_ij - m_new)`
+- **关键点**：减去 m_new 防止指数溢出，这是 Softmax 的标准数值稳定技巧
+
+**5. TODO 5: 计算局部指数和并更新全局指数和**
+- **实现方式**：`l_block = torch.sum(P_ij, dim=-1, keepdim=True)`，`l_new = l_i * torch.exp(m_i - m_new) + l_block`
+- **关键点**：Online Softmax 的修正公式——当最大值变化时，需要用指数因子修正旧的指数和
+- **技术细节**：`l_i * torch.exp(m_i - m_new)` 是修正项，将旧的指数和调整到新的基准 m_new
+
+**6. TODO 6: 更新输出 O_i**
+- **实现方式**：`out_i = out_i * (l_i * torch.exp(m_i - m_new) / l_new) + (P_ij @ v_block) / l_new`
+- **关键点**：同时修正旧输出和累加新输出，确保最终结果等价于标准 Attention
+- **技术细节**：第一项是修正后的旧输出，第二项是当前块的贡献
+
+**工程优化要点**
+- **空间复杂度**：从 O(N²) 降至 O(N)，避免存储完整的 Attention Score 矩阵
+- **数值稳定性**：通过动态更新最大值 m，确保指数运算不会溢出
+- **分块策略**：block_size 是关键超参数，需要根据硬件的 SRAM 大小调优
+- **在线更新**：无需等待所有块计算完成，每个块处理后立即更新全局状态
+- **工业实现**：真实的 FlashAttention 使用 CUDA/Triton 实现，利用共享内存和寄存器优化访存

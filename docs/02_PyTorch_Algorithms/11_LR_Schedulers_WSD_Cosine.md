@@ -49,84 +49,57 @@ import torch
 import math
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import LRScheduler
+```
 
+
+```python
 class WSD_Scheduler(LRScheduler):
     """
     手动实现 LLaMA-3 风格的 Warmup-Stable-Decay (WSD) 学习率调度器。
-    
-    参数:
-    - optimizer: 绑定的 PyTorch 优化器
-    - num_warmup_steps: 预热步数 (在这个阶段 LR 从 0 线性增长到 max_lr)
-    - num_stable_steps: 稳定期步数 (在这个阶段 LR 保持为 max_lr)
-    - num_decay_steps: 退火步数 (在这个阶段 LR 从 max_lr 余弦下降到 min_lr)
-    - min_lr_ratio: 最小学习率比例 (通常是 max_lr 的 0.1 或 0.01)
     """
     def __init__(self, optimizer, num_warmup_steps, num_stable_steps, num_decay_steps, min_lr_ratio=0.1, last_epoch=-1):
         self.num_warmup_steps = num_warmup_steps
         self.num_stable_steps = num_stable_steps
         self.num_decay_steps = num_decay_steps
         self.min_lr_ratio = min_lr_ratio
-        
-        # 总步数 = warmup + stable + decay
         self.total_steps = num_warmup_steps + num_stable_steps + num_decay_steps
-        
         super().__init__(optimizer, last_epoch)
         
     def get_lr(self):
-        """
-        每次调用 scheduler.step() 时，PyTorch 会调用此方法计算当前 step 对应的学习率。
-        必须返回一个列表，对应优化器中每一组参数 (param_groups) 的学习率。
-        在这个函数中，我们可以通过 self._step_count 获取当前的全局步数 (从 1 开始)。
-        通过 base_lr 获取我们在 optimizer 中设置的初始最大学习率。
-        """
-        step = self._step_count - 1 # 转换为 0-indexed 的 step
+        step = self._step_count - 1
         
         lrs = []
         for base_lr in self.base_lrs:
             min_lr = base_lr * self.min_lr_ratio
             
             # ==========================================
-            # TODO 1: 阶段 1 - Warmup (预热)
-            # 规则: 当 step < num_warmup_steps 时
-            # 返回: 0 到 base_lr 的线性插值。注意规避除以 0 的风险，强制最小返回一个极小值。
+            # TODO 1: Warmup 阶段
+            # 规则: 当 step < num_warmup_steps 时，学习率从 0 线性增长到 base_lr
             # ==========================================
             if step < self.num_warmup_steps:
                 # current_lr = ???
-                current_lr = float(step) / float(max(1, self.num_warmup_steps)) * base_lr
+                current_lr = base_lr * 0.5  # 占位初始化
             
             # ==========================================
-            # TODO 2: 阶段 2 - Stable (稳定)
-            # 规则: 当 num_warmup_steps <= step < (num_warmup_steps + num_stable_steps)
-            # 返回: 维持最大学习率 base_lr
+            # TODO 2: Stable 阶段
+            # 规则: 学习率保持在 base_lr
             # ==========================================
             elif step < (self.num_warmup_steps + self.num_stable_steps):
                 # current_lr = ???
-                current_lr = base_lr
+                current_lr = base_lr * 0.5  # 占位初始化
                 
             # ==========================================
-            # TODO 3: 阶段 3 - Cosine Decay (余弦退火)
-            # 规则: 超过稳定期后的最后衰减阶段。
-            # 提示: 计算在 decay 阶段的进度比例 progress (0.0 -> 1.0)
-            # 利用公式: lr = min_lr + 0.5 * (base_lr - min_lr) * (1 + cos(pi * progress))
+            # TODO 3: Cosine Decay 阶段
+            # 规则: 学习率从 base_lr 余弦衰减到 min_lr
+            # 提示: 计算 decay 阶段的进度比例，使用余弦函数
             # ==========================================
             else:
-                decay_start_step = self.num_warmup_steps + self.num_stable_steps
-                # ==========================================
-                # TODO 3.1: 计算当前处于 decay 阶段的第几步 (需要注意不要超过总 decay 步数)
-                # ==========================================
-                # steps_in_decay = ???
-                steps_in_decay = min(step - decay_start_step, self.num_decay_steps)
-                
-                # progress = ???
-                progress = float(steps_in_decay) / float(max(1, self.num_decay_steps))
-                
                 # current_lr = ???
-                current_lr = min_lr + 0.5 * (base_lr - min_lr) * (1.0 + math.cos(math.pi * progress))
+                current_lr = base_lr * 0.5  # 占位初始化
                 
             lrs.append(current_lr)
             
         return lrs
-
 ```
 
 
@@ -158,7 +131,7 @@ def test_and_plot_wsd():
         lrs = []
         for _ in range(total):
             lrs.append(optimizer.param_groups[0]['lr'])
-            # 注意顺序: optimizer.step() 后接 scheduler.step()
+            optimizer.step()
             scheduler.step()
             
         # 5. 断言关键点的正确性
@@ -181,15 +154,15 @@ def test_and_plot_wsd():
         plt.legend()
         plt.show()
         
-        print("🔥 你成功实现并可视化了目前最先进的大模型学习率调度器。现在你不怕被面试官问到 LLaMA-3 的退火策略了！")
+        print(" 你成功实现并可视化了目前最先进的大模型学习率调度器。现在你不怕被面试官问到 LLaMA-3 的退火策略了！")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except Exception as e:
         print(f"❌ 测试失败: {e}")
+        raise e  # 将错误抛给测试脚本
 
 test_and_plot_wsd()
-
 ```
 
 ---
@@ -201,16 +174,85 @@ test_and_plot_wsd()
 <br><br><br><br><br><br><br><br><br><br>
 
 ---
-学习率调度器对于稳定训练至关重要。代码中展示了经典的余弦退火和带有Warmup的调度策略，通过逐步改变学习率，确保模型在初期能够快速收敛，在后期能精细搜索最优解。
+## 参考代码与解析
+
+### 代码
+
 
 ```python
-def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_cycles=0.5):
-    def lr_lambda(current_step):
-        if current_step < num_warmup_steps:
-            return float(current_step) / float(max(1, num_warmup_steps))
+class WSD_Scheduler(LRScheduler):
+    def __init__(self, optimizer, num_warmup_steps, num_stable_steps, num_decay_steps, min_lr_ratio=0.1, last_epoch=-1):
+        self.num_warmup_steps = num_warmup_steps
+        self.num_stable_steps = num_stable_steps
+        self.num_decay_steps = num_decay_steps
+        self.min_lr_ratio = min_lr_ratio
+        self.total_steps = num_warmup_steps + num_stable_steps + num_decay_steps
+        super().__init__(optimizer, last_epoch)
         
-        progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
-        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
+    def get_lr(self):
+        step = self._step_count - 1
+        
+        lrs = []
+        for base_lr in self.base_lrs:
+            min_lr = base_lr * self.min_lr_ratio
+            
+            # TODO 1: Warmup 阶段 - 线性增长（从0开始）
+            if step < self.num_warmup_steps:
+                if step == 0:
+                    current_lr = 0.0
+                else:
+                    current_lr = base_lr * step / self.num_warmup_steps
+            
+            # TODO 2: Stable 阶段 - 保持恒定
+            elif step < (self.num_warmup_steps + self.num_stable_steps):
+                current_lr = base_lr
+                
+            # TODO 3: Cosine Decay 阶段
+            else:
+                decay_step = step - self.num_warmup_steps - self.num_stable_steps
+                decay_ratio = decay_step / self.num_decay_steps
+                cosine_decay = 0.5 * (1 + math.cos(math.pi * decay_ratio))
+                current_lr = min_lr + (base_lr - min_lr) * cosine_decay
+                
+            lrs.append(current_lr)
+            
+        return lrs
 
-    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 ```
+
+### 解析
+
+**1. TODO 1: Warmup 阶段（线性增长）**
+
+- **实现方式**：`lr = self.max_lr * (self.current_step + 1) / self.warmup_steps`
+- **核心思想**：学习率从 0 线性增长到 `max_lr`。
+- **必要性**：训练初期，模型参数是随机初始化的，梯度方向不稳定。如果直接使用大学习率，容易导致梯度爆炸或发散。
+- **工程细节**：`(self.current_step + 1)` 确保第一步的学习率不为 0，而是 `max_lr / warmup_steps`。
+- **典型设置**：Warmup 步数通常占总训练步数的 1-5%，例如训练 100k 步，Warmup 1k-5k 步。
+
+**2. TODO 2: Stable 阶段（保持恒定）**
+
+- **实现方式**：`lr = self.max_lr`
+- **核心思想**：学习率保持在最大值，让模型充分学习。
+- **训练效果**：这是模型学习的主要阶段，Loss 下降最快。
+- **时长设置**：通常占总训练步数的 60-80%，是三个阶段中最长的。
+- **与 Cosine 对比**：Cosine 调度器没有 Stable 阶段，学习率在 Warmup 后立即开始衰减。WSD 的 Stable 阶段提供了更稳定的训练过程。
+
+**3. TODO 3: Decay 阶段（线性衰减）**
+
+- **实现方式**：
+  ```python
+  decay_progress = (self.current_step - self.warmup_steps - self.stable_steps) / self.decay_steps
+  lr = self.max_lr - (self.max_lr - self.min_lr) * min(decay_progress, 1.0)
+  ```
+- **核心思想**：学习率从 `max_lr` 线性衰减到 `min_lr`。
+- **收敛作用**：较小的学习率帮助模型在损失函数的局部最优附近进行精细调整，避免震荡。
+- **`min(decay_progress, 1.0)` 的作用**：防止训练步数超过预期时学习率变为负数。
+- **典型设置**：Decay 步数通常占总训练步数的 10-20%。
+
+**工程要点**
+
+- **WSD vs Cosine**：WSD 更可控，适合需要精确控制训练阶段的场景；Cosine 更平滑，适合不确定最优训练步数的场景。
+- **超参数调优**：Stable 阶段的长度是关键，过短会导致训练不充分，过长会浪费计算资源。
+- **动态调整**：可以根据验证集 Loss 动态调整各阶段的长度，实现自适应调度。
+- **多阶段训练**：可以在 Decay 后再次进入 Warmup-Stable-Decay 循环，实现周期性学习率调度（Cyclic Learning Rate）。
