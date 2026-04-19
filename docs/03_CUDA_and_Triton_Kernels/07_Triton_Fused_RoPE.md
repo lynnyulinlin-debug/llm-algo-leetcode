@@ -169,7 +169,7 @@ def test_fused_rope():
         print("✅ 原地 (In-place) Triton Fused RoPE 算子实现成功！")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         # 增大测试规模 (模拟真实的 Prefill 阶段)
         seq_len, n_heads, head_dim = 2048, 32, 128
         x_large = torch.randn(seq_len, n_heads, head_dim, device='cuda', dtype=torch.float16)
