@@ -131,7 +131,7 @@ torch::Tensor shared_gemm_cuda(torch::Tensor A, torch::Tensor B);
 '''
 
 # 编译扩展
-print("⏳ 正在编译带有 Shared Memory 的 CUDA GEMM，请稍候...")
+print(" 正在编译带有 Shared Memory 的 CUDA GEMM，请稍候...")
 try:
     shared_gemm_extension = load_inline(
         name='shared_gemm_ext',
@@ -257,56 +257,6 @@ torch::Tensor shared_gemm_cuda(torch::Tensor A, torch::Tensor B) {
     return C;
 }
 '''
-```
-
-
-```python
-# 编译和测试
-cpp_shared_source = '''
-torch::Tensor shared_gemm_cuda(torch::Tensor A, torch::Tensor B);
-'''
-
-print("⏳ 正在编译 Shared Memory GEMM...")
-import time
-start = time.time()
-
-try:
-    shared_gemm_extension = load_inline(
-        name='shared_gemm_ext_answer',
-        cpp_sources=cpp_shared_source,
-        cuda_sources=cuda_shared_gemm_source,
-        functions=['shared_gemm_cuda'],
-        with_cuda=True,
-        extra_cflags=['-O3'],
-        extra_cuda_cflags=['-O3']
-    )
-    print(f"✅ 编译成功！耗时: {time.time() - start:.2f} 秒")
-except Exception as e:
-    print(f"❌ 编译失败: {e}")
-
-def test_shared_gemm():
-    if not torch.cuda.is_available():
-        print("⏭️ 无 GPU，跳过测试")
-        return
-    
-    if 'shared_gemm_extension' not in globals():
-        raise RuntimeError("CUDA 扩展编译失败")
-    
-    torch.manual_seed(42)
-    N = 1024
-    
-    A = torch.randn(N, N, device='cuda', dtype=torch.float32)
-    B = torch.randn(N, N, device='cuda', dtype=torch.float32)
-    
-    C_ref = A @ B
-    C_cu = shared_gemm_extension.shared_gemm_cuda(A, B)
-    
-    diff = torch.max(torch.abs(C_ref - C_cu))
-    assert diff < 1e-2, "Shared Memory GEMM 计算结果错误！"
-    
-    print("✅ Shared Memory GEMM 验证通过。")
-
-test_shared_gemm()
 ```
 
 ### 解析

@@ -132,7 +132,7 @@ def test_and_plot_wsd():
         lrs = []
         for _ in range(total):
             lrs.append(optimizer.param_groups[0]['lr'])
-            # 注意顺序: optimizer.step() 后接 scheduler.step()
+            optimizer.step()
             scheduler.step()
             
         # 5. 断言关键点的正确性
@@ -155,7 +155,7 @@ def test_and_plot_wsd():
         plt.legend()
         plt.show()
         
-        print("🔥 你成功实现并可视化了目前最先进的大模型学习率调度器。现在你不怕被面试官问到 LLaMA-3 的退火策略了！")
+        print(" 你成功实现并可视化了目前最先进的大模型学习率调度器。现在你不怕被面试官问到 LLaMA-3 的退火策略了！")
         
     except NotImplementedError:
         print("请先完成 TODO 代码！")

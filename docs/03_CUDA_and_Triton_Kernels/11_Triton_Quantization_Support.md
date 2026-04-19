@@ -178,7 +178,7 @@ def test_w8a16_gemm():
         print("✅ W8A16 即时反量化 GEMM 验证通过。")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         # 典型的 LLM Linear 层尺寸
         M, N, K = 4096, 4096, 4096
         
@@ -200,7 +200,7 @@ def test_w8a16_gemm():
         print(f"PyTorch FP16xFP16 GEMM Time:     {ms_pt:.4f} ms")
         print(f"Triton W8A16 On-the-fly GEMM:    {ms_tr:.4f} ms")
         print(f"Speedup vs Standard FP16:        {ms_pt / ms_tr:.2f}x")
-        print("💡 在 Memory Bound 场景下，读取 INT8 权重（一半带宽）+ SRAM 内反量化的总开销可能低于读取完整 FP16 权重。")
+        print(" 在 Memory Bound 场景下，读取 INT8 权重（一半带宽）+ SRAM 内反量化的总开销可能低于读取完整 FP16 权重。")
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except Exception as e:
@@ -220,13 +220,6 @@ test_w8a16_gemm()
 
 ---
 ## 参考代码与解析
-
-### 💡 参考解答：Triton 量化算子 W8A16 融合 GEMM
-
-在这个量化算子的实现中，最核心的操作是**即时反量化 (On-the-fly Dequantization)**。它的优势在于将昂贵的 HBM 显存读写转换为了极速的 SRAM/寄存器内计算：
-1. **轻量级加载**：通过 `tl.load(w_ptrs)` 加载 INT8 格式的权重，这使得这一步的显存读取量仅为原本 FP16 的一半，极大地缓解了 Memory Bound 的瓶颈。
-2. **SRAM 内计算**：`w_int8.to(x.dtype)` 以及随后的 `w_fp16 * scales[None, :]` 这两步操作，完全发生在高速的流处理器寄存器中。虽然增加了浮点类型转换和乘法的指令开销，但在 IO 瓶颈的大模型推理场景下是完全值得的。
-3. **融合乘加**：反量化后的结果直接投入 `tl.dot(x, w_fp16)` 参与矩阵乘，从始至终没有任何反量化后的 FP16 权重数组被写回到主存。
 ### 代码
 
 ```python

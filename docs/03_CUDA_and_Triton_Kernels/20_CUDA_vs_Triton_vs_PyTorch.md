@@ -1,30 +1,14 @@
-
-```python
-import torch
-# 20_CUDA_vs_Triton_vs_PyTorch 理论对比章节
-```
-
-
-```python
-import torch
-# 20_CUDA_vs_Triton_vs_PyTorch 理论对比章节
-```
-
-
-```python
-import torch
-# 20_CUDA_vs_Triton_vs_PyTorch 理论对比章节
-```
-
-
-```python
-import torch
-# 20_CUDA_vs_Triton_vs_PyTorch 理论对比章节
-```
-
-# 20. 大模型 Infra 架构视野：PyTorch vs Triton vs CUDA C++ 的三层降维
+# 20. CUDA vs Triton vs PyTorch | 大模型 Infra 架构视野：PyTorch vs Triton vs CUDA C++ 的三层降维
 
 **难度：** Hard | **标签：** `Architecture`, `Summary`, `Infra` | **目标人群：** 核心 Infra 与算子开发
+
+> 🚀 **云端运行环境**
+>
+> 本章节的实战代码可以点击以下链接在免费 GPU 算力平台上直接运行：
+>
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lynnyulinlin-debug/llm-algo-leetcode/blob/main/03_CUDA_and_Triton_Kernels/20_CUDA_vs_Triton_vs_PyTorch.ipynb)
+> [![Open In Studio](https://img.shields.io/badge/Open%20In-ModelScope-blueviolet?logo=alibabacloud)](https://modelscope.cn/my/mynotebook) *(国内推荐：魔搭社区免费实例)*
+
 
 如果你走到了这里，说明你已经成功打通了从顶层模型算法（Transformer / MoE）到底层算力释放（Triton 融合、CUDA 共享内存）的完整链路。
 本节作为整个仓库的最终总结，也是面试中最考验你宏观架构视野的一道综合简答题：
@@ -54,6 +38,11 @@ import torch
 
 
 ```python
+import torch
+```
+
+
+```python
 print("✅ 完成全部章节学习")
 print("已掌握从模型算法到底层算子的完整技术栈：")
 print("- 大模型参数计算与架构设计")
@@ -80,7 +69,7 @@ print("工程实践：三层技术栈的合理选型是性能优化的关键。"
 ---
 ## 参考代码与解析
 
-### 💡 参考解答：技术选型指南
+### 技术选型指南
 
 ### 1. 三层技术栈对比
 

@@ -89,6 +89,88 @@ python run_all_tests.py
 jupyter lab
 ```
 
+## 🧪 测试与验证脚本说明
+
+为了保证大模型底层算法的严谨性，本项目提供了专业的自动化测试和防透题验证脚本。详细的使用场景、执行原理和开发工作流，请查阅独立的指南文档：
+
+👉 **[自动化测试与验证脚本指南](./project_test_scripts.md)**
+
+简要命令速查：
+```bash
+# 集成测试：执行整个 notebook（提交 PR 前必跑）
+python run_all_tests.py
+
+# 答案单元测试：仅抽离测试官方答案代码是否正确
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode answer
+
+# 防透题测试：验证学生区代码是否按预期报错拦截
+python test_notebook_answers.py 02_PyTorch_Algorithms/00_PyTorch_Warmup.ipynb --mode question
+```
+
+## 📝 Jupyter Notebook 标准使用方法
+
+### 基础操作
+
+**1. 执行单元格 (Cell)**
+- **方式一：** 点击单元格，然后点击顶部工具栏的 ▶️ "Run" 按钮
+- **方式二：** 选中单元格后按 `Shift + Enter`（执行并跳到下一个单元格）
+- **方式三：** 按 `Ctrl + Enter`（执行但停留在当前单元格）
+
+**2. 执行所有单元格**
+- 点击顶部菜单栏：`Run` → `Run All Cells`
+- 或点击工具栏的 ⏩ "Run All" 按钮（向右的双三角形）
+
+**3. 单元格类型**
+- **Code Cell（代码单元格）**：用于编写和执行 Python 代码
+- **Markdown Cell（文档单元格）**：用于显示说明文字、公式和图片
+
+### 推荐的刷题流程
+
+**Step 1: 按顺序阅读和执行**
+```
+1. 先执行第一个 cell（导入库）
+2. 按顺序阅读每个 Part 的说明
+3. 在 TODO 处填写你的代码
+4. 执行测试 cell 验证答案
+```
+
+**Step 2: 如果遇到错误**
+- 检查是否按顺序执行了所有前置 cell
+- 确认所有 import 语句已执行
+- 查看错误信息，定位问题所在
+
+**Step 3: 查看参考答案**
+- 向下滚动穿过 `🛑 STOP HERE 🛑` 标记
+- 查看"官方解析与参考代码"部分
+- 理解解题思路后，尝试自己重新实现
+
+### 常见问题
+
+**Q: 为什么会出现 `name 'xxx' is not defined` 错误？**
+- **原因：** 没有按顺序执行前面的 cell，导致变量或函数未定义
+- **解决：** 点击 `Run` → `Run All Cells` 重新执行整个 notebook
+
+**Q: 如何重置 notebook 状态？**
+- 点击 `Kernel` → `Restart Kernel and Clear All Outputs`
+- 然后重新按顺序执行所有 cell
+
+**Q: 修改代码后测试仍然失败？**
+- 确保修改后重新执行了该 cell（单元格左侧会显示执行序号）
+- 如果修改了函数定义，需要重新执行定义该函数的 cell
+
+### 快捷键速查
+
+| 操作 | 快捷键 |
+|------|--------|
+| 执行当前 cell 并跳到下一个 | `Shift + Enter` |
+| 执行当前 cell 不跳转 | `Ctrl + Enter` |
+| 在上方插入新 cell | `A` (命令模式) |
+| 在下方插入新 cell | `B` (命令模式) |
+| 删除当前 cell | `D + D` (命令模式) |
+| 切换到命令模式 | `Esc` |
+| 切换到编辑模式 | `Enter` |
+| 保存 notebook | `Ctrl + S` |
+
 ## 贡献者名单
 
 | 姓名 | 职责 | 简介 |

@@ -92,21 +92,16 @@ def fused_rope_kernel(
     
     # ==========================================
     # TODO 1: 执行旋转公式
-    # 提示: 使用复数旋转公式
-    #       out_evens = x_evens * cos_vals - x_odds * sin_vals
-    #       out_odds = x_evens * sin_vals + x_odds * cos_vals
     # ==========================================
     # out_evens = ???
     # out_odds = ???
     
     # ==========================================
     # TODO 2: 将计算结果写回 t_ptr (In-place 修改)
-    # 提示: 使用 tl.store() 函数将结果写回原地址
-    #       tl.store(t_ptr + t_offset + evens, out_evens, mask=mask)
-    #       tl.store(t_ptr + t_offset + odds, out_odds, mask=mask)
     # ==========================================
     # tl.store(...)
     # tl.store(...)
+    
 
 def triton_apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
     """

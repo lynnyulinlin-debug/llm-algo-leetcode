@@ -42,6 +42,10 @@ Triton 的核心是装饰器 `@triton.autotune`。你可以在上方定义一组
 import torch
 import triton
 import triton.language as tl
+```
+
+
+```python
 
 # ==========================================
 # Autotune: 搜索空间 (Search Space) 分析
@@ -102,22 +106,18 @@ def matmul_kernel(
         # ==========================================
         # a = ???
         # b = ???
-        a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
-        b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
         
         # ==========================================
         # TODO 2: 矩阵乘加 (底层调用 Tensor Core)
         # ==========================================
         # accumulator += ???
-        accumulator += tl.dot(a, b)
         
         # ==========================================
         # TODO 3: 推进指针到下一个 K 块
         # ==========================================
         # a_ptrs += ???
         # b_ptrs += ???
-        a_ptrs += BLOCK_SIZE_K * stride_ak
-        b_ptrs += BLOCK_SIZE_K * stride_bk
+        pass
 
     # 5. 写入 C 矩阵 (HBM)
     c_ptrs = c_ptr + stride_cm * offs_am[:, None] + stride_cn * offs_bn[None, :]
@@ -174,7 +174,7 @@ def test_fused_gemm():
         print("✅ Triton 分块 GEMM 逻辑正确！")
         
         # 2. Benchmark 对比 (吞吐量 TFLOPs)
-        print("\n--- ⚡ 性能基准测试 (Benchmark: TFLOPs) ---")
+        print("\n--- 性能基准测试 (Benchmark: TFLOPs) ---")
         quantiles = [0.5, 0.2, 0.8]
         # 计算浮点运算次数 (2 * M * N * K)
         flops = 2 * M * N * K

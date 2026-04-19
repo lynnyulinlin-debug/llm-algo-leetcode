@@ -110,7 +110,7 @@ torch::Tensor vector_add_cuda(torch::Tensor x, torch::Tensor y);
 # 2. 编译并加载 CUDA 扩展 (JIT)
 # 这一步可能会耗时 10-30 秒，它会在后台调用 nvcc 编译器
 # ==========================================
-print("⏳ 正在后台使用 NVCC 编译 CUDA C++ 代码... 请耐心等待！")
+print(" 正在后台使用 NVCC 编译 CUDA C++ 代码... 请耐心等待！")
 import time
 start = time.time()
 

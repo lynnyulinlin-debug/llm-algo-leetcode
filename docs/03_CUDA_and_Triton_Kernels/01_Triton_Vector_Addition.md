@@ -43,6 +43,11 @@ import torch
 import triton
 import triton.language as tl
 
+```
+
+
+```python
+
 @triton.jit
 def add_kernel(
     x_ptr,  # 输入向量 X 的首地址指针
@@ -56,8 +61,7 @@ def add_kernel(
     
     # ==========================================
     # TODO 1: 计算当前 Block 需要处理的内存偏移量 (offsets)
-    # 提示: block_start = pid * BLOCK_SIZE
-    # 偏移量 = block_start + tl.arange(0, BLOCK_SIZE)
+    # 提示: 使用 pid 和 BLOCK_SIZE 计算块的起始位置
     # ==========================================
     # block_start = ???
     # offsets = ???
@@ -70,20 +74,23 @@ def add_kernel(
     
     # ==========================================
     # TODO 3: 从 HBM (显存) 中将 x 和 y 加载到 SRAM (片上内存) 中
-    # 提示: 使用 tl.load，传入带 offsets 的指针，并使用 mask
     # ==========================================
-    # x = tl.load(x_ptr + offsets, mask=mask)
+    # x = ???
     # y = ???
     
     # ==========================================
     # TODO 4: 在 SRAM 中进行向量加法，并将结果写回 HBM 的 z_ptr
-    # 提示: 使用 tl.store(指针, 值, mask)
     # ==========================================
     # z = ???
-    # tl.store(???, z, mask=mask)
     pass
 
 def triton_add(x: torch.Tensor, y: torch.Tensor):
+    # 检查 kernel 是否已实现（通过检查源码中是否还有 pass）
+    import inspect
+    source = inspect.getsource(add_kernel.fn)
+    if 'pass' in source and '# block_start = ???' in source:
+        raise NotImplementedError("请完成 add_kernel 中的 TODO 1-4")
+    
     assert x.is_cuda and y.is_cuda and x.shape == y.shape
     n_elements = x.numel()
     z = torch.empty_like(x)
@@ -123,7 +130,7 @@ def test_vector_add():
         print("✅ Vector Addition (Hello World) 算子测试通过！Mask 边界处理正确！")
         
         # 边界测试
-        print("\n--- 🧪 边界情况测试 ---")
+        print("\n---  边界情况测试 ---")
         
         # 测试1: 单元素向量
         x1 = torch.tensor([1.0], device='cuda')
@@ -146,7 +153,7 @@ def test_vector_add():
         assert torch.allclose(x3 + y3, z3), "对齐测试失败"
         print("✅ BLOCK_SIZE对齐测试通过")
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n---  性能基准测试 (Benchmark) ---")
         quantiles = [0.5, 0.2, 0.8]
         ms_pt, min_ms_pt, max_ms_pt = triton.testing.do_bench(lambda: x + y, quantiles=quantiles)
         ms_tr, min_ms_tr, max_ms_tr = triton.testing.do_bench(lambda: triton_add(x, y), quantiles=quantiles)
@@ -176,6 +183,10 @@ test_vector_add()
 ### 代码
 
 ```python
+import torch
+import triton
+import triton.language as tl
+
 @triton.jit
 def add_kernel(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(axis=0)
@@ -194,6 +205,20 @@ def add_kernel(x_ptr, y_ptr, z_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     # TODO 4: 计算并存回 HBM
     z = x + y
     tl.store(z_ptr + offsets, z, mask=mask)
+
+def triton_add(x: torch.Tensor, y: torch.Tensor):
+    assert x.is_cuda and y.is_cuda and x.shape == y.shape
+    n_elements = x.numel()
+    z = torch.empty_like(x)
+    
+    # 定义 BLOCK_SIZE，通常为 2 的幂次方，如 1024
+    BLOCK_SIZE = 1024
+    # 计算需要启动多少个 Block (向上取整)
+    grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)
+    
+    # 启动 Kernel
+    add_kernel[grid](x, y, z, n_elements, BLOCK_SIZE=BLOCK_SIZE)
+    return z
 ```
 
 ### 解析

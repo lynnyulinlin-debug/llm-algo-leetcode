@@ -57,24 +57,23 @@ def overlap_transfer_and_compute(cpu_tensors, compute_stream, transfer_stream, c
     """
     # ==========================================
     # TODO 1: 初始化双缓冲区
-    # 提示: 创建两个 GPU buffer，使用 torch.empty_like(cpu_tensors[0], device='cuda')
     # ==========================================
-    raise NotImplementedError("请实现 TODO 1: 初始化双缓冲区")
+    # 占位初始化（未实现双缓冲）
+    if len(cpu_tensors) == 0:
+        return
+    gpu_buffer = cpu_tensors[0].cuda()  # 只用单缓冲，未实现双缓冲
     
     # ==========================================
     # TODO 2: 预传输第一个 batch 到 buffer_0
-    # 提示: 使用 with torch.cuda.stream(transfer_stream): buffers[0].copy_(cpu_tensors[0], non_blocking=True)
     # ==========================================
     
     # ==========================================
     # TODO 3: 循环处理所有 batch，实现双缓冲和流重叠
-    # 提示: 
-    # 1. 对每个 batch，确定 current_buffer 和 next_buffer
-    # 2. 让 compute_stream 等待 transfer_stream 完成当前 buffer 的传输
-    # 3. 在 compute_stream 上发起计算
-    # 4. 让 transfer_stream 等待 compute_stream 完成对 next_buffer 的计算
-    # 5. 在 transfer_stream 上异步传输下一个 batch 到 next_buffer
     # ==========================================
+    # 占位：串行处理，未实现流重叠
+    for i in range(len(cpu_tensors)):
+        gpu_tensor = cpu_tensors[i].cuda(non_blocking=False)
+        compute_func(gpu_tensor)
 ```
 
 
@@ -84,6 +83,25 @@ def test_overlap():
     if not torch.cuda.is_available():
         print("⏭️ 忽略测试：无 GPU。")
         return
+
+    # ==========================================                                                                                                                                          
+    # 检测是否实现了双缓冲和流重叠                                                                                                                                                        
+    # ==========================================                                                                                                                                          
+    import inspect                                                                                                                                                                        
+    source = inspect.getsource(overlap_transfer_and_compute)                                                                                                                              
+                                                                                                                                                                                            
+    # 检查必需的实现特征                                                                                                                                                                  
+    required_patterns = [                                                                                                                                                                 
+        ('gpu_buffer_0', 'TODO 1: 必须初始化 gpu_buffer_0'),                                                                                                                              
+        ('gpu_buffer_1', 'TODO 1: 必须初始化 gpu_buffer_1'),                                                                                                                              
+        ('wait_stream', 'TODO: 必须使用 wait_stream 进行流同步'),                                                                                                                         
+        ('with torch.cuda.stream', 'TODO: 必须使用 with torch.cuda.stream 切换流'),                                                                                                       
+    ]                                                                                                                                                                                     
+                                                                                                                                                                                            
+    for pattern, error_msg in required_patterns:                                                                                                                                          
+        if pattern not in source:                         
+            raise AssertionError(error_msg)                                                                                                                                               
+                                                     
     
     # 构造数据，使传输和计算耗时相当，以展示双缓冲的优势
     # 注意：参数已针对当前GPU环境优化，在不同硬件上可能需要调整
@@ -134,7 +152,7 @@ def test_overlap():
         print("\n✅ CUDA Streams 传输延迟隐藏实现成功！显著提升性能。")
     elif overlap_time <= serial_time * 1.1:
         print("\n✅ CUDA Streams 传输延迟隐藏实现成功！")
-        print("💡 提示：在当前GPU环境下，双缓冲效果不明显。在数据中心GPU或更大规模数据下效果会更显著。")
+        print(" 提示：在当前GPU环境下，双缓冲效果不明显。在数据中心GPU或更大规模数据下效果会更显著。")
     else:
         raise AssertionError("异步重叠性能异常（超过10%下降），请检查流同步逻辑！")
 

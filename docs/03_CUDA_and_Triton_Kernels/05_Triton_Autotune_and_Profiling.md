@@ -51,6 +51,7 @@ import triton.language as tl
 # 3. 设置 key 为 ['n_elements']，以便对不同的输入大小缓存最优配置
 # ==========================================
 # @triton.autotune(???)
+
 @triton.jit
 def vector_add_autotune_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(axis=0)
@@ -68,10 +69,8 @@ def add_triton(x: torch.Tensor, y: torch.Tensor):
     
     # ==========================================
     # TODO 2: 动态计算 grid
-    # 提示: 使用 lambda 函数接收 meta 字典，根据 meta['BLOCK_SIZE'] 计算 grid 大小
     # ==========================================
     # grid = ???
-    # vector_add_autotune_kernel[grid](x, y, output, n_elements)
     pass
     
     return output
@@ -145,10 +144,10 @@ import torch
 if not torch.cuda.is_available():
     print("⏭️ 忽略测试：此环境没有 NVIDIA GPU，无法运行 Triton 基准测试。")
 else:
-    print("🚀 开始运行性能分析 (Profiling)... 这可能需要十几秒钟。")
+    print("开始运行性能分析 (Profiling)... 这可能需要十几秒钟。")
     # 运行 benchmark 并打印结果 (不保存图片，直接打印 pandas dataframe 格式)
     benchmark.run(print_data=True, show_plots=False)
-    print("\n✅ Autotune 和 Profiling 测试完成！")
+
 ```
 
 ---

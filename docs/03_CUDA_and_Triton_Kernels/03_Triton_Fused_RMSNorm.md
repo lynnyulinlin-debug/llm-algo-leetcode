@@ -53,6 +53,11 @@ import torch
 import triton
 import triton.language as tl
 
+```
+
+
+```python
+
 @triton.jit
 def _rmsnorm_fwd_fused(
     X_ptr,        # 输入矩阵 X 的指针 [M, N]
@@ -79,17 +84,12 @@ def _rmsnorm_fwd_fused(
     
     # ==========================================
     # TODO 1: 从显存加载当前行的数据 x，和权重 w 到 SRAM
-    # 提示: tl.load(指针 + 偏移, mask=mask, other=0.0)
     # ==========================================
     # x = ???
     # w = ???
     
     # ==========================================
     # TODO 2: 在 SRAM 中计算平方和与均方根 (RMS)
-    # 1. x_sq = x * x
-    # 2. 强制转换 x_sq 为 float32 (tl.math.cast 或是转义) 防溢出
-    # 3. 使用 tl.sum 求和
-    # 4. 计算 rsqrt: tl.math.rsqrt( sum / N + eps )
     # ==========================================
     # x_sq = ???
     # ...
@@ -97,8 +97,6 @@ def _rmsnorm_fwd_fused(
     
     # ==========================================
     # TODO 3: 归一化并乘以权重，最后写回显存
-    # y = x * rsqrt * w
-    # tl.store(y_row_start_ptr + col_offsets, y, mask=mask)
     # ==========================================
     # y = ???
     # ???

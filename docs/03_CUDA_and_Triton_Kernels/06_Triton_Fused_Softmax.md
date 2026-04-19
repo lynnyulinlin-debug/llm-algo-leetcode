@@ -70,31 +70,29 @@ def fused_softmax_kernel(
     
     # ==========================================
     # TODO 1: 寻找当前行的最大值 (安全 Softmax 第一步)
-    # 提示: 使用 tl.max(row, axis=0) 进行归约
     # ==========================================
     # row_max = ???
+    row_max = tl.zeros((1,), dtype=tl.float32)  # 占位初始化
     
-    # 减去最大值，避免 exp() 溢出
-    # safe_row = row - row_max
+    safe_row = row  # 占位初始化
     
     # ==========================================
     # TODO 2: 计算指数 (Numerator)
-    # 提示: 使用 tl.exp() 函数
     # ==========================================
     # numerator = ???
+    numerator = safe_row  # 占位初始化
     
     # ==========================================
     # TODO 3: 求和 (Denominator)。注意只有 mask 内的值才能参与计算
-    # 在 Load 时 other 补的是 -inf，其 exp(-inf) = 0，不影响 sum
-    # 提示: 使用 tl.sum(numerator, axis=0) 进行归约
     # ==========================================
     # denominator = ???
+    denominator = tl.zeros((1,), dtype=tl.float32) + 1.0  # 占位初始化（避免除零）
     
     # ==========================================
     # TODO 4: 计算最终输出，并存回显存
-    # 提示: softmax_output = numerator / denominator
     # ==========================================
     # softmax_output = ???
+    softmax_output = numerator  # 占位初始化
     
     # 定位输出指针，写回
     output_row_start_ptr = output_ptr + row_idx * output_row_stride
@@ -149,7 +147,7 @@ def test_fused_softmax():
         print("✅ 跨线程归约的数值稳定 Softmax 算子实现成功！")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         quantiles = [0.5, 0.2, 0.8]
         ms_pt, min_ms_pt, max_ms_pt = triton.testing.do_bench(lambda: torch.softmax(x, axis=1), quantiles=quantiles)
         ms_tr, min_ms_tr, max_ms_tr = triton.testing.do_bench(lambda: triton_softmax(x), quantiles=quantiles)

@@ -54,7 +54,7 @@ import math
 # ==========================================
 # 我们假设这些函数是你在前几节 (03, 07, 08, 02) 中已经写好的 Triton 封装。
 # 为了让本 Notebook 能独立运行，我们在这里提供极其简化的 dummy 实现或者直接调用。
-# 在实际工程中，你会用 import 导入你的 Triton Kernel。
+# 用 import 导入你的 Triton Kernel。
 # ==========================================
 def triton_rmsnorm(x, weight, eps=1e-5):
     # 假设这里调用了 03_Triton_Fused_RMSNorm 的算子
@@ -102,13 +102,13 @@ class TritonLlama3Block(nn.Module):
         self.norm2_weight = nn.Parameter(torch.ones(dim))
         
     def forward(self, x, cos, sin):
-        raise NotImplementedError("请完成 TODO 1-4")
+        #raise NotImplementedError("请完成 TODO 1-4")
         
         # ==========================================
         # TODO 1: 使用 Triton RMSNorm 替换原生 Norm
-        # 提示: 调用 triton_rmsnorm(x, self.norm1_weight)
         # ==========================================
         # h = ???
+        h = x  # 占位初始化
         
         # QKV 投影并变维 (batch, seq, n_heads, head_dim)
         batch_size, seq_len, _ = h.shape
@@ -118,15 +118,15 @@ class TritonLlama3Block(nn.Module):
         
         # ==========================================
         # TODO 2: 使用 Triton 融合 RoPE 处理 q 和 k
-        # 提示: 调用 triton_rope(q, k, cos, sin)
         # ==========================================
         # q, k = ???
+
         
         # ==========================================
         # TODO 3: 使用 Triton Flash Attention
-        # 提示: 调用 triton_flash_attn(q, k, v)
         # ==========================================
         # attn_output = ???
+        attn_output = q  # 占位初始化
         
         # 恢复形状并输出投影
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
@@ -134,64 +134,71 @@ class TritonLlama3Block(nn.Module):
         
         # ==========================================
         # TODO 4: MLP 部分
-        # 提示:
-        # 1. 对 h 使用 Triton RMSNorm: triton_rmsnorm(h, self.norm2_weight)
-        # 2. 调用 Triton Fused SwiGLU: triton_swiglu(normed_h, self.mlp_gate.weight, self.mlp_up.weight, self.mlp_down.weight)
-        # 3. 残差连接: out = h + mlp_out
         # ==========================================
         # normed_h = ???
         # mlp_out = ???
         # out = ???
+        normed_h = h  # 占位初始化                                                                                                                                            
+        mlp_out = torch.zeros_like(h)  # 占位初始化                                                                                                                           
+        out = h + mlp_out  # 占位初始化
+
+        return out
 ```
 
 
 ```python
-# 端到端性能对比 (Triton 组装 Block vs PyTorch 纯原生)
-import time
-
-def run_end_to_end_benchmark():
+# 标准测试函数
+def test_llama3_block():
     if not torch.cuda.is_available():
         print("⏭️ 忽略测试：无 GPU。")
         return
-        
+    
     try:
-        # 模拟 LLaMA-3 的一个标准层配置
-        dim = 4096
-        hidden_dim = 14336
-        n_heads = 32
-        batch, seq = 2, 2048
+        # ==========================================
+        # 检测是否调用了Triton算子
+        # ==========================================
+        import inspect
+        source = inspect.getsource(TritonLlama3Block.forward)
+        
+        # 检查必需的函数调用
+        required_calls = [
+            ('triton_rmsnorm', 'TODO 1: 必须调用 triton_rmsnorm'),
+            ('triton_flash_attn', 'TODO 3: 必须调用 triton_flash_attn'),
+            ('triton_swiglu', 'TODO 4: 必须调用 triton_swiglu'),
+        ]
+        
+        for func_name, error_msg in required_calls:
+            if func_name not in source:
+                raise AssertionError(error_msg)
+        
+        # ==========================================
+        # 功能测试
+        # ==========================================
+        dim = 512
+        hidden_dim = 2048
+        n_heads = 8
+        batch, seq = 2, 128
         
         triton_block = TritonLlama3Block(dim, hidden_dim, n_heads).cuda().half()
         x = torch.randn(batch, seq, dim, device='cuda', dtype=torch.float16)
-        
-        # 模拟 cos 和 sin
         head_dim = dim // n_heads
         cos = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
         sin = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
         
-        print("🚀 开始运行端到端 Benchmark (Warmup 10 次，记录 50 次)...")
-        # Warmup
-        for _ in range(10):
-            _ = triton_block(x, cos, sin)
-        torch.cuda.synchronize()
+        output = triton_block(x, cos, sin)
         
-        # 测试 Triton 整合版的耗时
-        start = time.time()
-        for _ in range(50):
-            _ = triton_block(x, cos, sin)
-        torch.cuda.synchronize()
-        triton_time = (time.time() - start) / 50.0 * 1000 # ms
+        # 基本检查
+        assert output.shape == x.shape, "输出形状错误"
+        assert not torch.isnan(output).any(), "输出包含 NaN"
+        assert not torch.isinf(output).any(), "输出包含 Inf"
         
-        print(f"✅ 全 Triton 加速的 LLaMA-3 Block 单层前向延迟: {triton_time:.2f} ms")
-        print("💡 通过算子融合和 SRAM 内计算，Triton 实现显著降低了 Memory Bound 操作的开销。")
+        print("✅ Triton LLaMA-3 Block 测试通过")
         
-    except NotImplementedError:
-        print("请先完成 TODO 代码！")
     except Exception as e:
-        print(f"❌ 运行失败: {e}")
+        print(f"❌ 测试失败: {e}")
+        raise
 
-run_end_to_end_benchmark()
-
+test_llama3_block()
 ```
 
 ---
@@ -204,12 +211,6 @@ run_end_to_end_benchmark()
 
 ---
 ## 参考代码与解析
-
-### 💡 参考解答：组装 LLaMA-3 Triton Block
-
-在这个综合项目中，我们将底层算子与 PyTorch 的 `nn.Module` 高层抽象完美结合：
-1. **彻底消除 PyTorch 的中间张量**：原本 PyTorch 的 `F.silu(gate) * up` 会产生极其庞大的激活张量并频繁在 HBM 中读写。我们利用 `triton_swiglu` 将激活函数和逐元素乘法全部融合，仅需要进出一次 HBM。
-2. **高度内聚的架构**：我们在 Python 层面的前向传播代码变得极其精简。`triton_rmsnorm`, `triton_rope`, `triton_flash_attn`, `triton_swiglu` 接管了所有 Memory Bound 最严重的环节，而大矩阵乘法则留给底层的 cuBLAS (通过 PyTorch Linear)。这正是业界构建如 vLLM, DeepSpeed 等高性能推理引擎的标准打法。
 ### 代码
 
 ```python
@@ -294,54 +295,48 @@ class TritonLlama3Block(nn.Module):
         out = h + mlp_out
         
         return out
-```
+
+#  # 端到端性能测试
+# import time
+
+# def run_end_to_end_benchmark():
+#     if not torch.cuda.is_available():
+#         print("⏭️ 无 GPU，跳过测试")
+#         return
+    
+#     # 模拟 LLaMA-3 的一个标准层配置
+#     dim = 4096
+#     hidden_dim = 14336
+#     n_heads = 32
+#     batch, seq = 2, 2048
+    
+#     triton_block = TritonLlama3Block(dim, hidden_dim, n_heads).cuda().half()
+#     x = torch.randn(batch, seq, dim, device='cuda', dtype=torch.float16)
+    
+#     # 模拟 cos 和 sin
+#     head_dim = dim // n_heads
+#     cos = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
+#     sin = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
+    
+#     print(" 开始运行端到端 Benchmark (Warmup 10 次，记录 50 次)...")
+#     # Warmup
+#     for _ in range(10):
+#         _ = triton_block(x, cos, sin)
+#     torch.cuda.synchronize()
+    
+#     # 测试 Triton 整合版的耗时
+#     start = time.time()
+#     for _ in range(50):
+#         _ = triton_block(x, cos, sin)
+#     torch.cuda.synchronize()
+#     triton_time = (time.time() - start) / 50.0 * 1000 # ms
+    
+#     print(f"✅ 全 Triton 加速的 LLaMA-3 Block 单层前向延迟: {triton_time:.2f} ms")
+#     print(" 通过算子融合和 SRAM 内计算，Triton 实现显著降低了 Memory Bound 操作的开销。")
 
 
-```python
-# 端到端性能测试
-import time
 
-def run_end_to_end_benchmark():
-    if not torch.cuda.is_available():
-        print("⏭️ 无 GPU，跳过测试")
-        return
-    
-    # 模拟 LLaMA-3 的一个标准层配置
-    dim = 4096
-    hidden_dim = 14336
-    n_heads = 32
-    batch, seq = 2, 2048
-    
-    triton_block = TritonLlama3Block(dim, hidden_dim, n_heads).cuda().half()
-    x = torch.randn(batch, seq, dim, device='cuda', dtype=torch.float16)
-    
-    # 模拟 cos 和 sin
-    head_dim = dim // n_heads
-    cos = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
-    sin = torch.randn(seq, head_dim // 2, device='cuda', dtype=torch.float16)
-    
-    print("🚀 开始运行端到端 Benchmark (Warmup 10 次，记录 50 次)...")
-    # Warmup
-    for _ in range(10):
-        _ = triton_block(x, cos, sin)
-    torch.cuda.synchronize()
-    
-    # 测试 Triton 整合版的耗时
-    start = time.time()
-    for _ in range(50):
-        _ = triton_block(x, cos, sin)
-    torch.cuda.synchronize()
-    triton_time = (time.time() - start) / 50.0 * 1000 # ms
-    
-    print(f"✅ 全 Triton 加速的 LLaMA-3 Block 单层前向延迟: {triton_time:.2f} ms")
-    print("💡 通过算子融合和 SRAM 内计算，Triton 实现显著降低了 Memory Bound 操作的开销。")
-
-# 标准测试函数
-def test_llama3_block():
-    """标准测试函数包装器"""
-    run_end_to_end_benchmark()
-
-test_llama3_block()
+# test_llama3_block()
 ```
 
 ### 解析

@@ -111,14 +111,19 @@ def paged_attention_decoding_kernel(
         # ==========================================
         # qk = ???
         
-        # Online Softmax 归约
+    
+        # ==========================================
+        # TODO 4: Online Softmax 归约
+        # ==========================================
         # m_block = ???
         # m_new = ???
         # alpha = ???
         # p = ???
         # l_new = ???
         
-        # 累加 V
+        # ==========================================
+        # TODO 5: 累加 V
+        # ==========================================
         # acc = ???
         
         # m_i = ???
@@ -210,7 +215,7 @@ def test_paged_attention():
         print("✅ PagedAttention 间接寻址与 Online Softmax 验证通过。")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         # 放大测试规模模拟真实的 Decoding 并发
         batch_size, num_heads, head_dim = 32, 32, 128
         block_size = 16
@@ -238,7 +243,6 @@ def test_paged_attention():
         quantiles = [0.5, 0.2, 0.8]
         ms_tr, _, _ = triton.testing.do_bench(lambda: triton_paged_attention_decode(q_l, k_cache_l, v_cache_l, block_tables_l, context_lens_l, block_size), quantiles=quantiles)
         print(f"Triton PagedAttention Time (Batch={batch_size}, AvgSeqLen=500): {ms_tr:.4f} ms")
-        print("💡 在工业界，PagedAttention 不仅通过免除 KV 拷贝提高了吞吐，更重要的是消除了显存碎片，允许接入多达 3 倍的并发请求。")
     except NotImplementedError:
         print("请先完成 TODO 代码！")
     except Exception as e:
@@ -258,13 +262,6 @@ test_paged_attention()
 
 ---
 ## 参考代码与解析
-
-### 💡 参考解答：Triton PagedAttention (KV Cache 间接寻址)
-
-在这个实现中，核心在于处理**间接寻址**带来的访存跳转：
-1. **查表获取物理索引**：首先通过 `logical_block_idx` 在 `block_tables` 中查表，得到真正的 `physical_block_idx`。
-2. **构建物理缓存指针偏移**：由于缓存存储的形状是 `[num_blocks, block_size, num_heads, head_dim]`，我们需要结合对应的 `stride` 和当前获取的 `physical_block_idx`，精确计算出所需的内存区域偏移。这让我们可以在不触发显存重排列的情况下直接访问碎片化的内存块。
-3. **计算 Attention 与 Online Softmax**：加载得到碎片的 K 和 V 块后，就直接在 SRAM 里进行注意力点积和在线 Softmax 状态聚合，将内存读写与计算完美重叠。
 ### 代码
 
 ```python
@@ -321,14 +318,14 @@ def paged_attention_decoding_kernel(
         qk = tl.sum(q[None, :] * k, axis=1) * sm_scale
         qk = tl.where(mask, qk, -float('inf'))
         
-        # Online Softmax 归约
+        # TODO 4:Online Softmax 归约
         m_block = tl.max(qk, axis=0)
         m_new = tl.maximum(m_i, m_block)
         alpha = tl.exp(m_i - m_new)
         p = tl.exp(qk - m_new)
         l_new = l_i * alpha + tl.sum(p, axis=0)
         
-        # 累加 V
+        # TODO 5:累加 V
         acc = acc * alpha + tl.sum(p[:, None] * v, axis=0)
         
         m_i = m_new
@@ -403,7 +400,7 @@ def triton_paged_attention_decode(q, k_cache, v_cache, block_tables, context_len
   - `sm_scale = 1.0 / sqrt(head_dim)` 是标准的缩放因子，防止 Softmax 梯度消失
   - `tl.where(mask, qk, -float('inf'))` 将超出 `context_len` 的位置设为负无穷，确保 Softmax 后权重为 0
 
-**4. Online Softmax 归约**
+**4. TODO 4: Online Softmax 归约**
 - **实现方式**（答案区代码中的注释部分）：
   ```python
   m_block = tl.max(qk, axis=0)
@@ -421,7 +418,7 @@ def triton_paged_attention_decode(q, k_cache, v_cache, block_tables, context_len
   - `p = exp(qk - m_new)` 是当前块的 Softmax 分子（未归一化）
   - `l_new` 是更新后的归一化因子
 
-**5. 累加 V 并更新状态**
+**5. TODO 5: 累加 V 并更新状态**
 - **实现方式**：
   ```python
   acc = acc * alpha + tl.sum(p[:, None] * v, axis=0)

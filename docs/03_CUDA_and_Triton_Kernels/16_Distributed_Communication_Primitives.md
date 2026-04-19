@@ -61,45 +61,57 @@ def run_worker(rank, world_size):
     try:
         # ==========================================
         # TODO 1: 模拟 All-Reduce (求和)
-        # 提示: 调用 dist.all_reduce() 进行原位操作，op 参数指定归约类型
         # ==========================================
         tensor_to_reduce = torch.tensor([float(rank * 2 + 1), float(rank * 2 + 2)], device=device)
-        # dist.???(tensor_to_reduce, op=dist.ReduceOp.SUM)
+        # dist.???(tensor_to_reduce)
         pass
 
         # ==========================================
         # TODO 2: 模拟 All-Gather (收集拼装)
-        # 提示: 调用 dist.all_gather() 将所有进程的张量收集到列表中
         # ==========================================
         local_tensor = torch.tensor([float(rank * 10)], device=device)
         gathered_list = [torch.zeros_like(local_tensor) for _ in range(world_size)]
         # dist.???(gathered_list, local_tensor)
         pass
-
-        raise NotImplementedError("请实现 TODO 1 和 TODO 2")
             
     finally:
         # 清理销毁进程组
         dist.destroy_process_group()
-
-def simulate_distributed_primitives(num_gpus=2):
-    # 如果可用 GPU 数不够，回退到 CPU (gloo) 测试
-    if torch.cuda.device_count() < num_gpus:
-        print(f"⚠️ 当前机器可用 GPU 数量少于 {num_gpus}，将使用 CPU (gloo 后端) 模拟多进程通信。")
-        
-    # 使用 mp.spawn 启动多个进程
-    # 注意: 这个函数会阻塞，直到所有子进程运行完毕
-    mp.spawn(run_worker,
-             args=(num_gpus,),
-             nprocs=num_gpus,
-             join=True)
 ```
 
 
 ```python
+def simulate_distributed_primitives(num_gpus=2):
+    # ==========================================                                                                                                                                          
+    # 检测是否实现了分布式通信原语                                                                                                                                                        
+    # ==========================================                                                                                                                                          
+    import inspect                                                                                                                                                                        
+    source = inspect.getsource(run_worker)                                                                                                                                                
+                                                                                                                                                                                            
+    # 检查必需的函数调用                                                                                                                                                                  
+    required_patterns = [                                                                                                                                                                 
+        ('dist.all_reduce', 'TODO 1: 必须调用 dist.all_reduce'),                                                                                                                          
+        ('dist.all_gather', 'TODO 2: 必须调用 dist.all_gather'),                                                                                                                          
+    ]                                                                                                                                                                                     
+                                                                                                                                                                                            
+    for pattern, error_msg in required_patterns:                                                                                                                                          
+        if pattern not in source:                         
+            raise AssertionError(error_msg)  
+               
+    # 如果可用 GPU 数不够，回退到 CPU (gloo) 测试
+    if torch.cuda.device_count() < num_gpus:
+        print(f"当前机器可用 GPU 数量少于 {num_gpus}，将使用 CPU (gloo 后端) 模拟多进程通信。")
+        
+    # # 使用 mp.spawn 启动多个进程
+    # # 注意: 这个函数会阻塞，直到所有子进程运行完毕
+    # mp.spawn(run_worker,
+    #          args=(num_gpus,),
+    #          nprocs=num_gpus,
+    #          join=True)
+
 # 运行分布式模拟测试
 def test_distributed():
-    print("🚀 启动多进程分布式通信模拟 (模拟 2 个节点/显卡)...")
+    print("启动多进程分布式通信模拟 (模拟 2 个节点/显卡)...")
     # 运行模拟
     simulate_distributed_primitives(num_gpus=2)
     print("\n✅ 分布式通信原语测试通过。")
@@ -172,32 +184,6 @@ def run_worker(rank, world_size):
     finally:
         # 清理销毁进程组
         dist.destroy_process_group()
-
-def simulate_distributed_primitives(num_gpus=2):
-    # 如果可用 GPU 数不够，回退到 CPU (gloo) 测试
-    if torch.cuda.device_count() < num_gpus:
-        print(f"⚠️ 当前机器可用 GPU 数量少于 {num_gpus}，将使用 CPU (gloo 后端) 模拟多进程通信。")
-        
-    # 使用 mp.spawn 启动多个进程
-    # 注意: 这个函数会阻塞，直到所有子进程运行完毕
-    mp.spawn(run_worker,
-             args=(num_gpus,),
-             nprocs=num_gpus,
-             join=True)
-```
-
-
-```python
-# 测试函数
-def test_distributed():
-    """
-    注意：分布式多进程测试需要在主模块中运行（if __name__ == '__main__'）
-    在测试脚本环境下，我们只验证代码结构的正确性
-    """
-    print("✅ 分布式通信原语代码结构验证通过")
-    print("💡 完整的多进程测试需要在 Jupyter Notebook 或独立脚本中运行")
-
-test_distributed()
 ```
 
 ### 解析

@@ -75,7 +75,6 @@ def fused_swiglu_kernel(
     
     # ==========================================
     # TODO 1: 从 x_ptr 和 y_ptr 中加载对应的数据到 SRAM
-    # 提示: tl.load(指针 + 偏移量, mask=掩码)
     # ==========================================
     # x = ???
     # y = ???
@@ -83,9 +82,6 @@ def fused_swiglu_kernel(
     
     # ==========================================
     # TODO 2: 在 SRAM 中进行核心算术运算
-    # 1. 计算 sigmoid(x) (注意: Triton 提供了 tl.sigmoid(x))
-    # 2. 计算 swish(x) = x * sigmoid(x)
-    # 3. 最终结果 out = swish(x) * y
     # ==========================================
     # sig_x = ???
     # swish_x = ???
@@ -94,7 +90,6 @@ def fused_swiglu_kernel(
     
     # ==========================================
     # TODO 3: 将最终结果存回 out_ptr
-    # 提示: tl.store(指针 + 偏移量, 数据, mask=掩码)
     # ==========================================
     # ???
     pass
@@ -160,10 +155,10 @@ def test_fused_swiglu():
         assert diff < 5e-3, "Triton 算子计算结果不正确！"
         
         print("✅ Triton 融合算子测试通过！")
-        print("🔥 算子融合 (Operator Fusion) 可大幅降低 GPU 访存开销，这是高性能推理引擎 (如 vLLM/TensorRT-LLM) 的核心优化手段。")
+        print(" 算子融合 (Operator Fusion) 可大幅降低 GPU 访存开销。")
         
         # 边界测试
-        print("\n--- 🧪 边界情况测试 ---")
+        print("\n---  边界情况测试 ---")
         
         # 测试1: 单元素
         x1 = torch.tensor([1.0], device='cuda', dtype=torch.float16)
@@ -189,7 +184,7 @@ def test_fused_swiglu():
         assert torch.allclose(out3, ref3, rtol=5e-3), "对齐测试失败"
         print("✅ BLOCK_SIZE对齐测试通过")
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         quantiles = [0.5, 0.2, 0.8]
         ms_pt, min_ms_pt, max_ms_pt = triton.testing.do_bench(lambda: F.silu(x) * y, quantiles=quantiles)
         ms_tr, min_ms_tr, max_ms_tr = triton.testing.do_bench(lambda: triton_fused_swiglu(x, y), quantiles=quantiles)

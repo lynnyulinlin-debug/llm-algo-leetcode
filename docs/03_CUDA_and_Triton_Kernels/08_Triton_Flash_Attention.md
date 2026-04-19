@@ -89,34 +89,29 @@ def flash_attn_fwd_kernel(
         
         # ==========================================
         # TODO 1: 计算注意力分数 S = Q @ K^T * scale
-        # 提示: 使用 tl.dot(q, tl.trans(k)) 计算矩阵乘法
-        #       然后乘以 sm_scale 进行缩放
         # ==========================================
         # qk = ???
         # qk *= sm_scale
+        qk = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)  # 占位初始化
         
         # ==========================================
         # TODO 2: 计算 Online Softmax 的新状态
-        # 提示: m_block = tl.max(qk, axis=1)
-        #       m_new = tl.maximum(m_i, m_block)
         # ==========================================
         # m_block = ???
         # m_new = ???
+        m_new = m_i  # 占位初始化
         
         # ==========================================
         # TODO 3: 计算指数并更新 l_i 和 p
-        # 提示: p = tl.exp(qk - m_new[:, None])
-        #       alpha = tl.exp(m_i - m_new)
-        #       l_new = l_i * alpha + tl.sum(p, axis=1)
         # ==========================================
         # p = ???
         # alpha = ???
         # l_new = ???
+        p = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)  # 占位初始化
+        l_new = l_i  # 占位初始化
         
         # ==========================================
         # TODO 4: 修正过去的输出结果 acc，并累加新的 p @ v
-        # 提示: acc = acc * alpha[:, None]
-        #       acc += tl.dot(p.to(v.dtype), v)
         # ==========================================
         # acc = ???
         
@@ -139,8 +134,8 @@ def triton_flash_attention(q, k, v, sm_scale):
     out = torch.empty_like(q)
     
     # 配置分块大小
-    BLOCK_M = 128
-    BLOCK_N = 128
+    BLOCK_M = 64
+    BLOCK_N = 64
     BLOCK_DMODEL = triton.next_power_of_2(head_dim)
     
     grid = (triton.cdiv(seqlen_q, BLOCK_M), )
@@ -189,14 +184,14 @@ def test_triton_flash_attention():
         assert diff < 1e-3, "Triton Flash Attention 结果不正确！"
         
         print("✅ Triton Flash Attention 前向计算内核实现成功！")
-        print("💡 成功实现了 SRAM 中块与块之间的局部最大值归约更新，掌握了 Online Softmax 的核心机制。")
+        print(" 实现了 SRAM 中块与块之间的局部最大值归约更新，掌握了 Online Softmax 的核心机制。")
         
     
-        print("\n--- ⚡ 性能基准测试 (Benchmark) ---")
+        print("\n--- 性能基准测试 (Benchmark) ---")
         # 典型的 LLM 推理/训练尺寸
         seqlen_q = 4096
         seqlen_k = 4096
-        head_dim = 128
+        head_dim = 64
         q_l = torch.randn(seqlen_q, head_dim, device='cuda', dtype=torch.float16)
         k_l = torch.randn(seqlen_k, head_dim, device='cuda', dtype=torch.float16)
         v_l = torch.randn(seqlen_k, head_dim, device='cuda', dtype=torch.float16)
@@ -323,8 +318,8 @@ def triton_flash_attention(q, k, v, sm_scale):
     out = torch.empty_like(q)
     
     # 配置分块大小
-    BLOCK_M = 128
-    BLOCK_N = 128
+    BLOCK_M = 64
+    BLOCK_N = 64
     BLOCK_DMODEL = triton.next_power_of_2(head_dim)
     
     grid = (triton.cdiv(seqlen_q, BLOCK_M), )
